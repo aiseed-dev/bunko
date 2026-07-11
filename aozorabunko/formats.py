@@ -13,11 +13,26 @@ _CSS = '''
 body { font-family: serif; line-height: 1.9; }
 p { text-indent: 0; margin: 0 0 0.3em; }
 em.sesame_dot, em.white_sesame_dot, em.black_circle, em.white_circle,
-em.bullseye, em.fisheye, em.saltire { font-style: normal;
-  text-emphasis: filled sesame; -webkit-text-emphasis: filled sesame; }
-em.white_sesame_dot { text-emphasis: open sesame; -webkit-text-emphasis: open sesame; }
-em[class^="underline_"] { font-style: normal; text-decoration: underline; }
-em[class^="overline_"] { font-style: normal; text-decoration: overline; }
+em.black_up-pointing_triangle, em.white_up-pointing_triangle,
+em.bullseye, em.fisheye, em.saltire { font-style: normal; }
+em.sesame_dot   { text-emphasis: filled sesame;        -webkit-text-emphasis: filled sesame; }
+em.white_sesame_dot { text-emphasis: open sesame;      -webkit-text-emphasis: open sesame; }
+em.black_circle { text-emphasis: filled circle;        -webkit-text-emphasis: filled circle; }
+em.white_circle { text-emphasis: open circle;          -webkit-text-emphasis: open circle; }
+em.black_up-pointing_triangle { text-emphasis: filled triangle; -webkit-text-emphasis: filled triangle; }
+em.white_up-pointing_triangle { text-emphasis: open triangle;   -webkit-text-emphasis: open triangle; }
+em.fisheye      { text-emphasis: filled double-circle; -webkit-text-emphasis: filled double-circle; }
+em.bullseye     { text-emphasis: open double-circle;   -webkit-text-emphasis: open double-circle; }
+em.saltire      { text-emphasis: "\\00D7";             -webkit-text-emphasis: "\\00D7"; }
+em[class$="_after"] { font-style: normal;
+  text-emphasis: filled sesame; -webkit-text-emphasis: filled sesame;
+  text-emphasis-position: under left; -webkit-text-emphasis-position: under left; }
+em[class^="underline_"] { font-style: normal; text-decoration-line: underline; }
+em[class^="overline_"]  { font-style: normal; text-decoration-line: overline; }
+em.underline_double, em.overline_double { text-decoration-style: double; }
+em.underline_dotted { text-decoration-style: dotted; }
+em.underline_dashed { text-decoration-style: dashed; }
+em.underline_wave   { text-decoration-style: wavy; }
 span.futoji { font-weight: bold; }
 span.shatai { font-style: italic; }
 '''
