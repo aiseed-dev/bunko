@@ -33,8 +33,8 @@ Shift_JIS 注記付きテキスト（青空文庫の正本）
 ## 2. インストール
 
 ```bash
-pip install pybunko            # 本体（依存なし・標準ライブラリのみ）
-pip install "pybunko[epub]"    # EPUB出力も使う
+pip install -e 'app/kobo'        # ローカル編集インストール（PyPI個別登録はしない）
+pip install -e 'app/kobo[epub]'  # EPUB出力も使う
 pip install "aozorabunko[parquet]" # Parquetコーパス出力も使う
 pip install "aozorabunko[washi]"   # 縦書き・PDF組版（washi-md委譲）
 ```

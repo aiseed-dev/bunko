@@ -42,8 +42,8 @@ python -m pybunko merosu.txt --indent 2
 ## インストール
 
 ```bash
-pip install pybunko             # 本体（依存なし・標準ライブラリのみ）
-pip install pybunko[epub]       # EPUB出力も使う場合
+pip install -e app/kobo         # ローカル編集インストール（PyPI個別登録はしない）
+pip install -e 'app/kobo[epub]' # EPUB出力も使う場合
 ```
 
 ## API
