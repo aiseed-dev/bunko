@@ -12,6 +12,10 @@ license = { text = "MIT" }
 keywords = ["aozora", "aozorabunko", "japanese", "ebook", "epub"]
 dependencies = []
 
+[project.scripts]
+# Shift_JIS 注記付きテキスト → Unicode JSON
+aozorabunko = "aozorabunko.__main__:main"
+
 [project.optional-dependencies]
 epub = ["ebooklib>=0.18"]
 # 縦書き・原稿用紙・PDF組版は aiseed-dev/washi-md に委譲（Phase 7 で結線）。
