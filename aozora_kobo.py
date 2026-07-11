@@ -127,6 +127,9 @@ def main(page: ft.Page):
     def ins_inspect(w: Work):
         ins_status.value = f'「{w.title}」を取得・点検中…'
         page.update()
+        page.run_thread(lambda: _ins_inspect_work(w))
+
+    def _ins_inspect_work(w: Work):
         try:
             rep = inspect_work(w.text())
         except Exception as ex:
@@ -188,9 +191,8 @@ def main(page: ft.Page):
         page.update()
 
     def run_asset(name, fn):
-        def handler(e):
-            asset_busy.visible = True
-            page.update()
+        # 重い処理はUIスレッド外で（同期ハンドラで回すとWebSocketが切れて完走しない）
+        def work():
             try:
                 out = Path(out_dir.value or 'assets_out')
                 out.mkdir(parents=True, exist_ok=True)
@@ -200,6 +202,11 @@ def main(page: ft.Page):
             finally:
                 asset_busy.visible = False
                 page.update()
+
+        def handler(e):
+            asset_busy.visible = True
+            page.update()
+            page.run_thread(work)
         return handler
 
     def build_db(out: Path):
@@ -259,6 +266,9 @@ def main(page: ft.Page):
     def ver_check(w: Work):
         ver_status.value = f'「{w.title}」を検証中…（正解HTML取得→生成→diff）'
         page.update()
+        page.run_thread(lambda: _ver_check_work(w))
+
+    def _ver_check_work(w: Work):
         try:
             rep = golden_check(w)
         except Exception as ex:
