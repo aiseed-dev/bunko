@@ -17,6 +17,15 @@ em.bouten { font-style: normal;
 '''
 
 
+_MIDASHI_SIZE_NAME = {2: 'o', 3: 'naka', 4: 'ko'}   # 大 / 中 / 小
+_MIDASHI_TYPE_PREFIX = {'mado': 'mado-', 'dogyo': 'dogyo-'}
+
+
+def midashi_class(level: int, type_: str | None) -> str:
+    """見出しのCSSクラス名（aozora2html互換: o-midashi / mado-ko-midashi 等）。"""
+    return _MIDASHI_TYPE_PREFIX.get(type_, '') + _MIDASHI_SIZE_NAME[level] + '-midashi'
+
+
 def to_html(doc: Document) -> str:
     """本文をHTML断片に（<ruby>タグ使用）"""
     out = []
@@ -29,8 +38,11 @@ def to_html(doc: Document) -> str:
             for t in p.emphasis:
                 inner = inner.replace(html.escape(t),
                                       f'<em class="bouten">{html.escape(t)}</em>', 1)
-        tag = f'h{p.heading_level}' if p.heading_level else 'p'
-        out.append(f'<{tag}>{inner}</{tag}>')
+        if p.heading_level:
+            cls = midashi_class(p.heading_level, p.heading_type)
+            out.append(f'<h{p.heading_level} class="{cls}">{inner}</h{p.heading_level}>')
+        else:
+            out.append(f'<p>{inner}</p>')
     return '\n'.join(out)
 
 
