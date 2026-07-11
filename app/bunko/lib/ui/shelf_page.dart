@@ -33,7 +33,38 @@ const Map<String, List<(String, List<String>)>> kanaOfRow = {
   'わ': [('ワ', ['わ']), ('ヰ', ['ゐ']), ('ヱ', ['ゑ']), ('ヲ', ['を']), ('ン', ['ん'])],
 };
 
-enum ShelfMode { author, title } // 作家別 / 作品別（公式の2軸）
+/// NDC最上位（類）のラベル（公式「分野別リスト」準拠。K=児童書）
+const Map<String, String> ndcTopLabels = {
+  '0': '総記', '1': '哲学', '2': '歴史', '3': '社会科学', '4': '自然科学',
+  '5': '技術', '6': '産業', '7': '芸術', '8': '言語', '9': '文学', 'K': '児童書',
+};
+
+/// よく現れる3桁分類のラベル（無いものはコードのみ表示）
+const Map<String, String> ndcSubLabels = {
+  '121': '日本思想', '159': '人生訓', '210': '日本史', '280': '伝記', '289': '個人伝記',
+  '291': '日本地誌', '304': '社会評論', '361': '社会学', '370': '教育', '388': '伝説・民話',
+  '410': '数学', '420': '物理学', '440': '天文', '460': '生物', '480': '動物', '490': '医学',
+  '498': '衛生', '520': '建築', '588': '食品工業', '596': '料理', '610': '農業',
+  '620': '園芸', '660': '水産', '699': '放送', '720': '絵画', '740': '写真', '760': '音楽',
+  '770': '演劇', '775': '演劇史', '778': '映画', '780': 'スポーツ', '790': '諸芸・娯楽',
+  '800': '言語', '810': '日本語', '830': '英語', '900': '文学（総記）',
+  '901': '文学論', '902': '文学史', '908': '全集', '910': '日本文学（評論）',
+  '911': '詩歌', '912': '戯曲', '913': '小説・物語', '914': '評論・随筆',
+  '915': '日記・紀行', '916': '記録・手記', '917': '箴言', '918': '作品集', '919': '漢詩文',
+  '920': '中国文学', '923': '中国小説', '929': '東洋文学', '930': '英米文学（評論）',
+  '933': '英米小説', '934': '英米評論', '935': '英米日記', '940': 'ドイツ文学',
+  '943': 'ドイツ小説', '950': 'フランス文学', '953': 'フランス小説', '954': '仏評論',
+  '960': 'スペイン文学', '963': 'スペイン小説', '970': 'イタリア文学', '973': '伊小説',
+  '980': 'ロシア文学', '983': 'ロシア小説', '989': '他スラブ文学', '990': '他言語文学',
+};
+
+String ndcSubLabel(String code) {
+  final digits = code.startsWith('K') ? code.substring(1) : code;
+  final label = ndcSubLabels[digits];
+  return label == null ? code : '$code $label';
+}
+
+enum ShelfMode { author, title, ndc } // 作家別 / 作品別 / 分野別（公式の3軸）
 
 class ShelfPage extends StatefulWidget {
   final BunkoDb db;
@@ -48,6 +79,8 @@ class _ShelfPageState extends State<ShelfPage> {
   ShelfMode _mode = ShelfMode.author;
   String _row = 'あ';
   (String, List<String>)? _kana; // 選択中の個別かな（null=行全体）
+  String _ndcTop = '9'; // 分野別: 選択中の類（文学が既定）
+  String? _ndcSub; // 分野別: 選択中の3桁分類（null=類全体）
   String _query = '';
 
   void _setRow(String row) => setState(() {
@@ -58,7 +91,11 @@ class _ShelfPageState extends State<ShelfPage> {
   @override
   Widget build(BuildContext context) {
     final st = widget.db.stats();
-    final modeLabel = _mode == ShelfMode.author ? '作家別作品一覧' : '作品別一覧';
+    final modeLabel = switch (_mode) {
+      ShelfMode.author => '作家別作品一覧',
+      ShelfMode.title => '作品別一覧',
+      ShelfMode.ndc => '分野別リスト',
+    };
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 20,
@@ -88,6 +125,7 @@ class _ShelfPageState extends State<ShelfPage> {
               segments: const [
                 ButtonSegment(value: ShelfMode.author, label: Text('作家別')),
                 ButtonSegment(value: ShelfMode.title, label: Text('作品別')),
+                ButtonSegment(value: ShelfMode.ndc, label: Text('分野別')),
               ],
               selected: {_mode},
               showSelectedIcon: false,
@@ -103,11 +141,78 @@ class _ShelfPageState extends State<ShelfPage> {
               onSelectionChanged: (s) => setState(() {
                 _mode = s.first;
                 _kana = null;
+                _ndcSub = null;
               }),
             ),
           ]),
         ),
-        if (_query.isEmpty) ...[
+        if (_query.isEmpty && _mode == ShelfMode.ndc) ...[
+          // 分野（NDC類。公式: 分野別リスト）
+          SizedBox(
+            height: 44,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              children: [
+                for (final t in widget.db.ndcTop())
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                    child: ChoiceChip(
+                      label: Text(
+                          '${ndcTopLabels[t.$1] ?? t.$1}（${t.$2}）'),
+                      selected: _ndcTop == t.$1,
+                      selectedColor: Sumi.shu,
+                      labelStyle: TextStyle(
+                          fontSize: 12,
+                          color:
+                              _ndcTop == t.$1 ? Sumi.paperHi : Sumi.inkSoft),
+                      onSelected: (_) => setState(() {
+                        _ndcTop = t.$1;
+                        _ndcSub = null;
+                      }),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          // 類内の3桁分類
+          SizedBox(
+            height: 40,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                  child: ChoiceChip(
+                    label: const Text('すべて'),
+                    selected: _ndcSub == null,
+                    selectedColor: Sumi.inkSoft,
+                    labelStyle: TextStyle(
+                        fontSize: 12,
+                        color: _ndcSub == null ? Sumi.paperHi : Sumi.muted),
+                    onSelected: (_) => setState(() => _ndcSub = null),
+                  ),
+                ),
+                for (final c in widget.db.ndcSub(_ndcTop))
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                    child: ChoiceChip(
+                      label: Text('${ndcSubLabel(c.$1)}（${c.$2}）'),
+                      selected: _ndcSub == c.$1,
+                      selectedColor: Sumi.shu,
+                      labelStyle: TextStyle(
+                          fontSize: 12,
+                          color:
+                              _ndcSub == c.$1 ? Sumi.paperHi : Sumi.inkSoft),
+                      onSelected: (_) => setState(() => _ndcSub = c.$1),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+        if (_query.isEmpty && _mode != ShelfMode.ndc) ...[
           // 五十音の行（公式: あ行〜わ行）
           SizedBox(
             height: 44,
@@ -173,7 +278,11 @@ class _ShelfPageState extends State<ShelfPage> {
         Expanded(
           child: _query.isNotEmpty
               ? _searchList()
-              : (_mode == ShelfMode.author ? _authorList() : _titleList()),
+              : switch (_mode) {
+                  ShelfMode.author => _authorList(),
+                  ShelfMode.title => _titleList(),
+                  ShelfMode.ndc => _ndcList(),
+                },
         ),
       ]),
     );
@@ -252,14 +361,30 @@ class _ShelfPageState extends State<ShelfPage> {
     );
   }
 
-  Widget _workTile(WorkMeta w, {bool dense = false}) {
+  // ── 分野別（公式: 分野別リスト＝NDC分類） ────────────────────
+  Widget _ndcList() {
+    final works = widget.db.worksByNdc(_ndcSub ?? _ndcTop);
+    if (works.isEmpty) {
+      return const Center(
+          child: Text('該当する作品がありません', style: TextStyle(color: Sumi.muted)));
+    }
+    return ListView.separated(
+      itemCount: works.length,
+      separatorBuilder: (c, i) => const Divider(height: 1),
+      itemBuilder: (context, i) => _workTile(works[i], showNdc: true),
+    );
+  }
+
+  Widget _workTile(WorkMeta w, {bool dense = false, bool showNdc = false}) {
     return ListTile(
       dense: dense,
       contentPadding: EdgeInsets.only(left: dense ? 32 : 16, right: 16),
       title: Text(w.title),
       subtitle: dense
           ? null
-          : Text('${w.author}　${w.titleYomi}',
+          : Text(
+              '${w.author}　${w.titleYomi}'
+              '${showNdc && w.ndc.isNotEmpty ? '　NDC ${w.ndc}' : ''}',
               style: const TextStyle(fontSize: 12, color: Sumi.muted)),
       trailing: w.hasDoc
           ? const Icon(Icons.download_done, size: 16, color: Sumi.muted)

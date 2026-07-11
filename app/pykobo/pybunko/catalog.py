@@ -33,6 +33,7 @@ class Work:
     card_url: str
     text_url: str
     copyrighted: bool
+    ndc: str = ''   # NDC分類（正規化済み: '913' / 'K933'=児童 / '756 914'=複数）
     _cache_dir: Path = field(repr=False, compare=False,
                              default_factory=default_cache_dir)
 
@@ -113,6 +114,7 @@ class Library:
                 card_url=row['図書カードURL'],
                 text_url=row['テキストファイルURL'],
                 copyrighted=copyrighted,
+                ndc=row.get('分類番号', '').removeprefix('NDC').strip(),
                 _cache_dir=self.cache_dir))
         return works
 

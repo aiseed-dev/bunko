@@ -30,6 +30,7 @@ class BunkoDb {
         authorYomi: (r['author_yomi'] as String?) ?? '',
         row: (r['row'] as String?) ?? 'その他',
         cardUrl: (r['card_url'] as String?) ?? '',
+        ndc: (r['ndc'] as String?) ?? '',
         textUrl: (r['text_url'] as String?) ?? '',
         copyrighted: (r['copyrighted'] as int) != 0,
         hasDoc: r['has_doc'] as int != 0,
@@ -37,7 +38,7 @@ class BunkoDb {
       );
 
   static const _cols = 'work_id,title,title_yomi,author,author_yomi,row,'
-      'card_url,text_url,copyrighted,'
+      'card_url,text_url,copyrighted,ndc,'
       '(doc IS NOT NULL) AS has_doc,(card IS NOT NULL) AS has_card';
 
   /// 書架: 作家別の作品数（よみ順）。行タブ（row）と個別かな（initials）で絞り込み。
@@ -94,6 +95,33 @@ class BunkoDb {
         'SELECT $_cols FROM works WHERE author=? AND author_yomi=? '
         'ORDER BY title_yomi, title',
         [author, authorYomi]);
+    return [for (final r in rs) _meta(r)];
+  }
+
+  /// 分野別: 最上位分類（0-9=NDC類・K=児童）ごとの作品数。主分類（先頭コード）で数える。
+  List<(String, int)> ndcTop() {
+    final rs = _db.select(
+        "SELECT substr(ndc,1,1) AS c, COUNT(*) AS n FROM works "
+        "WHERE ndc != '' GROUP BY c ORDER BY c");
+    return [for (final r in rs) (r['c'] as String, r['n'] as int)];
+  }
+
+  /// 分野別: 最上位分類内の3桁分類（Kは'K'+3桁）ごとの作品数。
+  List<(String, int)> ndcSub(String top) {
+    final len = top == 'K' ? 4 : 3;
+    final rs = _db.select(
+        "SELECT substr(ndc,1,?) AS c, COUNT(*) AS n FROM works "
+        "WHERE ndc LIKE ? GROUP BY c ORDER BY c",
+        [len, '$top%']);
+    return [for (final r in rs) (r['c'] as String, r['n'] as int)];
+  }
+
+  /// 分野別: 分類コード（'9'類全体 or '913' or 'K913'）の作品一覧（よみ順）。
+  List<WorkMeta> worksByNdc(String prefix, {int limit = 3000}) {
+    final rs = _db.select(
+        'SELECT $_cols FROM works WHERE ndc LIKE ? '
+        'ORDER BY title_yomi, title LIMIT ?',
+        ['$prefix%', limit]);
     return [for (final r in rs) _meta(r)];
   }
 

@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS works(
   row          TEXT,            -- 五十音行（あ/か/…/その他）
   card_url     TEXT, text_url   TEXT,
   copyrighted  INTEGER,
+  ndc          TEXT,           -- NDC分類（'913'/'K933'/'756 914'。分野別インデックス用）
   doc          TEXT,            -- 作品本文の構造化データ（JSONのまま）。NULL=未取得
   card         TEXT             -- 図書カード詳細（底本・入力者等, JSONのまま）。NULL=未取得
 );
@@ -44,16 +45,18 @@ def _migrate(con: sqlite3.Connection) -> None:
     cols = {r[1] for r in con.execute("PRAGMA table_info(works)")}
     if 'card' not in cols:
         con.execute("ALTER TABLE works ADD COLUMN card TEXT")
+    if 'ndc' not in cols:
+        con.execute("ALTER TABLE works ADD COLUMN ndc TEXT")
 
 _UPSERT = """
 INSERT INTO works
-  (work_id,title,title_yomi,author,author_yomi,row,card_url,text_url,copyrighted)
-  VALUES(:work_id,:title,:title_yomi,:author,:author_yomi,:row,:card_url,:text_url,:copyrighted)
+  (work_id,title,title_yomi,author,author_yomi,row,card_url,text_url,copyrighted,ndc)
+  VALUES(:work_id,:title,:title_yomi,:author,:author_yomi,:row,:card_url,:text_url,:copyrighted,:ndc)
 ON CONFLICT(work_id) DO UPDATE SET
   title=excluded.title, title_yomi=excluded.title_yomi,
   author=excluded.author, author_yomi=excluded.author_yomi, row=excluded.row,
   card_url=excluded.card_url, text_url=excluded.text_url,
-  copyrighted=excluded.copyrighted
+  copyrighted=excluded.copyrighted, ndc=excluded.ndc
 """   # doc は上書きしない（本文JSONは保持）
 
 
@@ -69,6 +72,7 @@ def build_catalog(works, path: str) -> str:
             'row': corpus._kana_row(w.author_yomi),
             'card_url': w.card_url, 'text_url': w.text_url,
             'copyrighted': int(w.copyrighted),
+            'ndc': getattr(w, 'ndc', ''),
         } for w in works])
         con.commit()
     finally:

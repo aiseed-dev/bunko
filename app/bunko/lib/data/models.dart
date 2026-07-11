@@ -125,6 +125,7 @@ class Doc {
 class WorkMeta {
   final String workId, title, titleYomi, author, authorYomi, row;
   final String cardUrl, textUrl;
+  final String ndc; // NDC分類（'913'/'K933'/'756 914'。空=分類なし）
   final bool copyrighted, hasDoc, hasCard;
 
   const WorkMeta({
@@ -136,6 +137,7 @@ class WorkMeta {
     required this.row,
     required this.cardUrl,
     required this.textUrl,
+    this.ndc = '',
     required this.copyrighted,
     required this.hasDoc,
     required this.hasCard,
