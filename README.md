@@ -22,7 +22,8 @@ aozorabunko 1567_ruby_4948.zip -o merosu.json   # .txt / .zip / URL 対応
 python -m aozorabunko merosu.txt --indent 2
 ```
 
-パイプライン全体・JSONスキーマ・**注記や出力形式の増やし方**は [MANUAL.md](MANUAL.md) を参照。
+パイプライン全体・JSONスキーマ・**注記や出力形式の増やし方**は [MANUAL.md](MANUAL.md)、
+全体アーキテクチャ・決定記録（**読者アプリ=Flutter／工作員ツール=Flet**）は [DESIGN.md](DESIGN.md) を参照。
 
 ## 設計原則
 

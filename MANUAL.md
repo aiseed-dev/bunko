@@ -1,10 +1,12 @@
 # aozorabunko マニュアル
 
 青空文庫の**Shift_JIS 注記付きテキスト**を、**Unicodeに解決した構造化データ**に変換し、
-そこから HTML / EPUB / 読み上げ / JSON / Parquet を生み出すためのライブラリ。
+そこから HTML / EPUB / 読み上げ / JSON / SQLite / Parquet を生み出すためのライブラリ。
 
 このマニュアルは「入口」と「拡張の仕方」を書いたもの。**追加作業は永久に続く**ので、
 新しい注記や出力形式を足すときは、下流（parser / formats）へ積み増していけばよい。
+全体アーキテクチャと役割分担（**読者アプリ=Flutter／工作員ツール=Flet**）・決定記録は
+[DESIGN.md](DESIGN.md) を参照。
 
 ---
 
@@ -210,15 +212,37 @@ pytest
 
 ---
 
-## 8. エコシステム
+## 8. アプリ層との関係（誰が何を使うか）
+
+このライブラリは**データを作る側**。使う側は2種類に分かれる（詳細は DESIGN.md §6）:
+
+| 対象 | 技術 | このライブラリとの接点 |
+|---|---|---|
+| **読者アプリ** | **Flutter**（Web/iOS/Android/デスクトップ） | Pythonは実行時に呼ばない。`build_sqlite` で作った **aozora.db**（メタ＋doc/card JSON列）と、`python -m pyaozora.fonts` の**外字フォント**を同梱して描くだけ |
+| **工作員ツール** | **Flet**（Python） | ライブラリを**直接 import**。変換確認・外字チェック・DB構築・ゴールデン検証。aozora-tegami がその置き場 |
+
+読者向けの成果物は「データ資産」:
+
+```bash
+# 読者アプリ（Flutter）に同梱する2点を作る
+python - <<'EOF'
+from aozorabunko import Library
+Library().build_sqlite('aozora.db')          # 書架メタ（約1秒・5.6MB）
+EOF
+python -m pyaozora.fonts aozora-gaiji.woff2  # 真の外字4,330字（≈2.8MB）
+```
+
+## 9. エコシステム
 
 | リポジトリ | 役割 |
 |---|---|
-| **aozorabunko**（本体） | 正本→Unicode Document→各形式（読む側・このマニュアル） |
-| **pyaozora** | Document→公式XHTML＋外字フォント化・埋め込み（作る側／検証） |
-| **aozora-tegami** | Fletリーダー＋EPUB＋TTS（aozorabunkoの利用例） |
+| **aozorabunko**（本体） | 正本→Unicode Document→JSON/SQLite/各形式（このマニュアル） |
+| **pyaozora** | 公式XHTML再現（検証・凍結維持）＋外字フォント資産づくり |
+| **aozora-tegami** | **Flet 工作員ツール**（変換プレビュー・EPUB・TTS） |
+| （新設予定）aozora_flutter | **Flutter 読者アプリ**（aozora.db＋フォント同梱） |
 | aiseed-dev/**washi-md** | Markdown→縦書き・PDF組版（`[washi]`で委譲） |
-| aiseed-dev/**mdit-py-cjk-friendly** | CJK対応 markdown-it-py（ルビ・傍点） |
+| aiseed-dev/**mdit-py-cjk-friendly** | CJK対応 markdown-it-py（ルビ・傍点bouten） |
+| aiseed-dev/**flutter_svg_cjk_friendly** | FlutterのSVG CJK/縦書き補助 |
 
 正本さえ静的テキストで生き続ければ、検索も表示も電子書籍化も朗読も、すべて
 読者の手元で・データから生やせる。このライブラリはその実演であり、入口である。
