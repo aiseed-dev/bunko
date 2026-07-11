@@ -1,5 +1,7 @@
 /// 注記パーサ（Dart移植）の単体テスト。
 /// Python版 aozorabunko のテストと同じ判定を移植し、両実装の互換を担保する。
+library;
+
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';

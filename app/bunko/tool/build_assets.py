@@ -7,7 +7,7 @@
 """
 import json, pathlib, shutil, struct, tempfile
 
-APP = pathlib.Path("/home/dev/dev/bunko")
+APP = pathlib.Path(__file__).resolve().parent.parent  # app/bunko
 ASSETS = APP / "assets"
 (ASSETS / "fonts").mkdir(parents=True, exist_ok=True)
 
