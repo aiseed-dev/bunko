@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aozorabunko"
+version = "0.1.0"
+description = "青空文庫をPythonから ── 静的な正本だけに依存する検索・パース・変換ライブラリ"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+keywords = ["aozora", "aozorabunko", "japanese", "ebook", "epub"]
+dependencies = []
+
+[project.optional-dependencies]
+epub = ["ebooklib>=0.18"]
+
+[tool.setuptools]
+packages = ["aozorabunko"]
