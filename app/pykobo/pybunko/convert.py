@@ -10,7 +10,7 @@
     to_json('1567_ruby_4948.zip', 'merosu.json')
 
     # CLI
-    python -m aozorabunko 1567_ruby_4948.zip -o merosu.json
+    python -m pybunko 1567_ruby_4948.zip -o merosu.json
     aozorabunko 1567_ruby_4948.zip            # 標準出力へ
 """
 from __future__ import annotations

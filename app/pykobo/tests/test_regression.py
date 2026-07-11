@@ -78,7 +78,7 @@ def test_unknown_notes_collector():
 
 
 def test_keep_blank_lines():
-    """keep_blank_lines=True で空行が空段落として保持される（pyaozora向け）。"""
+    """keep_blank_lines=True で空行が空段落として保持される（official向け）。"""
     from pybunko import parse
     src = "題\n著\n一行目\n\n\n二行目\n"
     # 既定は空行を捨てる

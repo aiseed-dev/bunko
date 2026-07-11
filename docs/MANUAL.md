@@ -35,8 +35,8 @@ Shift_JIS 注記付きテキスト（青空文庫の正本）
 ```bash
 pip install -e 'app/pykobo'        # ローカル編集インストール（PyPI個別登録はしない）
 pip install -e 'app/pykobo[epub]'  # EPUB出力も使う
-pip install "aozorabunko[parquet]" # Parquetコーパス出力も使う
-pip install "aozorabunko[washi]"   # 縦書き・PDF組版（washi-md委譲）
+pip install -e 'app/pykobo[parquet]'   # Parquetコーパス出力も使う
+pip install -e 'app/pykobo[washi]'     # 縦書き・PDF組版（washi-md委譲）
 ```
 
 Python 3.10+。本体はゼロ依存、重い機能だけオプション。
@@ -219,20 +219,20 @@ pytest
 | 対象 | 技術 | このライブラリとの接点 |
 |---|---|---|
 | **読者アプリ** | **Flutter**（Web/iOS/Android/デスクトップ） | Pythonは実行時に呼ばない。`build_sqlite` で作った **aozora.db**（メタ＋doc/card JSON列）と、`python -m pybunko.fonts` の**外字フォント**を同梱して描くだけ |
-| **工作員ツール** | **Flet**（Python） | ライブラリを**直接 import**。変換確認・外字チェック・DB構築・ゴールデン検証。aozora-tegami がその置き場 |
+| **工作員ツール** | **Flet**（Python） | ライブラリを**直接 import**。変換確認・外字チェック・DB構築・ゴールデン検証。app/pykobo（青空工房）がその置き場 |
 
 読者向けの成果物は「データ資産」:
 
 ```bash
 # 読者アプリ（Flutter）の共有資産（bunko/assets/）を一括生成
-python app/bunko/tool/build_assets.py        # aozora.db・フォント・外字表・SJIS表
+python tools/build_assets.py                 # aozora.db・フォント・外字表・SJIS表
 
 # 個別に作る場合
 python -c "from pybunko import Library; Library().build_sqlite('aozora.db')"
 python -m pybunko.fonts aozora-gaiji.woff2  # 真の外字4,330字（≈2.8MB）
 ```
 
-GUIでは工房（aozora-tegami/aozora_kobo.py）の**資産タブ**から同じものを生成できる。
+GUIでは工房（app/pykobo/aozora_kobo.py）の**資産タブ**から同じものを生成できる。
 
 ## 9. エコシステム
 
@@ -240,8 +240,8 @@ GUIでは工房（aozora-tegami/aozora_kobo.py）の**資産タブ**から同じ
 |---|---|
 | **pybunko**（本体） | 正本→Unicode Document→JSON/SQLite/各形式（このマニュアル） |
 | **pybunko.official** | 公式XHTML再現（検証・凍結維持）＋外字フォント資産づくり |
-| **aozora-tegami** | **Flet 工作員ツール**（変換プレビュー・EPUB・TTS） |
-| （新設予定）aozora_flutter | **Flutter 読者アプリ**（aozora.db＋フォント同梱） |
+| app/**pykobo** | **Flet 工作員アプリ「青空工房」**（検査・資産・検証＋EPUB・TTS） |
+| app/**bunko** | **Flutter 読者アプリ「文庫」**（aozora.db＋フォント同梱・全OS足場） |
 | aiseed-dev/**washi-md** | Markdown→縦書き・PDF組版（`[washi]`で委譲） |
 | aiseed-dev/**mdit-py-cjk-friendly** | CJK対応 markdown-it-py（ルビ・傍点bouten） |
 | aiseed-dev/**flutter_svg_cjk_friendly** | FlutterのSVG CJK/縦書き補助 |

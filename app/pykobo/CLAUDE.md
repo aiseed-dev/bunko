@@ -1,70 +1,49 @@
-# CLAUDE.md ── pybunko パッケージの作業規約
+# CLAUDE.md ── app/pykobo（青空工房＋pybunko）の作業規約
 
-## プロジェクトの目的
+## これは何か
 
-青空文庫のGitHubミラーの**静的ファイルだけ**に依存するPythonライブラリ。
-検索・パース・HTML/EPUB/読み上げ変換を、サーバなしで読者の手元で行う。
+bunkoモノレポのPython側。**青空工房**（Flet工作員アプリ・検査/資産/検証の3タブ）と、
+その内部実装 **pybunko**（正本→Unicode Document→JSON/SQLite/EPUB/公式XHTML/フォント資産）。
+全体設計は ../../docs/DESIGN.md、使い方と拡張の仕方は ../../docs/MANUAL.md（正本）。
 
-## アーキテクチャ（3層・変更禁止）
+## アーキテクチャ（pybunko・変更時は事前相談）
 
 ```
-catalog.py  → Library / Work（カタログ・検索・キャッシュ・取得）
-parser.py   → 注記付きテキスト → Document（唯一の中間表現）
-formats.py  → Document → 各出力形式（HTML / EPUB / 読み上げ文 / 今後Parquet等）
+catalog.py / card.py / db.py   → Library・Work・図書カード・SQLite（メタ＋doc/card JSON列）
+parser.py                      → 注記付きテキスト → Document（唯一の中間表現）
+formats.py / corpus.py / convert.py → 出力形式（HTML/EPUB/TTS/MD/JSON/Parquet）
+official.py / fonts.py         → 公式XHTML再現（凍結維持）／外字フォント資産
+data/                          → CC0対応表（再生成は ../../tools/build_gaiji_table.py）
 ```
-
-- 出力形式を増やすときは formats.py に関数を足す。parser.py は注記対応の拡充のみ
-- Document / Paragraph / Segment の構造を壊す変更は事前に相談すること
 
 ## 絶対規則
 
-1. **公式サーバー（aozora.gr.jp）にアクセスするコードを書かない。**
-   取得はすべて `raw.githubusercontent.com/aozorabunko/aozorabunko/master/` 経由
-2. **本体（install_requires）に依存を足さない。** 標準ライブラリのみ。
-   重い依存は optional-dependencies（`[epub]`, `[parquet]` など）へ
-3. **著作権存続作品のデフォルト除外を外さない**（`public_domain_only=True`）
-4. ネットワーク取得は必ず `_fetch()`（キャッシュ経由）を通す。
-   直接 `urlopen` を書かない。オフライン再現性はテストで担保する
-5. テキスト処理の文字コード: 注記付きテキストはShift_JIS
-   （`errors='replace'`）、カタログCSVは `utf-8-sig`
-
-## 進捗と現在のタスク
-
-`aozorahack/aozora2html`（Ruby, CC0-1.0）のテスト駆動移植。
-
-**移植済み（Phase 1–6, 意味構造ファースト）**:
-外字(gaiji) / 見出し(header) / 字下げ・地付き・字詰め(dir) / 傍点・傍線類(decorate) /
-アクセント分解(accent) / 挿絵(img)。CC0対応表は `data/*.json` に同梱（jis2ucs, accent_table,
-command_tableは decorate.py に写経）。Rubyテストは意味構造ファーストで pytest に翻訳済み。
-
-**washi-md 連携済み（Phase 7a）**: `Document.to_markdown()`（dendenルビ `{漢字|かんじ}`）→
-`to_washi_html(vertical=True)` / `to_pdf()` で aiseed-dev/washi-md に委譲（[washi]エクストラ）。
-
-**次のタスク**:
-- 上流還元: 青空の `｜`複合ルビ・**傍点(text-emphasis)** を mdit-py-cjk-friendly へPR（双方向バージョンアップ）
-- 公式互換HTML `to_html(compat='aozora')` を別レンダラで（意味構造と見た目互換を混ぜない）
-- Parquet一括エクスポート、縦書きリーダー統合(aozora-tegami)
-
-- 新しい注記対応を足すときは、対応するRubyテストを意味構造ファーストで pytest に翻訳してから実装
-- 外字/アクセント/装飾の対応表は aozora2html 由来を流用（自作しない）
-
-詳細は HANDOFF.md を参照。
+1. 公式サーバー（aozora.gr.jp）にアクセスしない。取得はGitHubミラー
+   `raw.githubusercontent.com/aozorabunko/aozorabunko/master/` のみ・必ずキャッシュ経由。
+2. pybunko本体はゼロ依存（標準ライブラリのみ）。重い依存は extras（epub/washi/parquet/font）。
+3. 著作権存続作品はデフォルト除外（public_domain_only=True）。
+4. Document が唯一の中間表現。出力形式は formats に関数を足す。
+5. **PyPIには個別登録しない**（ローカル編集インストール専用: `pip install -e '.[epub]'`）。
+6. **GitHubへのpush等の公開操作はユーザー自身が実行**（コマンド提示まで）。
+7. Fletで重い処理は必ず `page.run_thread()`（UIスレッドで回すとWebSocketが切れて完走しない）。
 
 ## テスト
 
 ```bash
-pip install -e '.[epub]' pytest
-pytest
+pip install -e '.[epub]' pytest && pytest     # 98件・完全オフライン（urlopen遮断）
 ```
 
-- 回帰の基準作品: 『走れメロス』（ルビ・75段落）、『吾輩は猫である』（長編・2316段落）
-- 新しい注記対応を足したら、対応するフィクスチャテストを必ず先に書く
-- オフラインテスト: `urllib.request.urlopen` をモックで遮断し、
-  キャッシュのみで全機能が動くことを確認する
+- 回帰の基準作品: 走れメロス（同梱fixture）・吾輩は猫である（外字35）・山月記（外字22）
+- 新しい注記対応は、_ref/aozora2html（Ruby, CC0）のテストを意味構造ファーストで
+  pytest に翻訳してから実装（詳細: MANUAL §5.1）
 
-## 文体・対外方針
+## 工房の起動
 
-- コミットメッセージ・docstringは日本語でよい
-- READMEやissueでの対外的な文章は、批判を書かない。
-  aozorahack「第三の柱」の文言を引用し「サーバを増やさない実装例」として提示する
-- 青空文庫の注記形式そのものへの敬意を保つ（例:「ルビは読みのデータでもある」）
+```bash
+flet run aozora_kobo.py                  # デスクトップ
+KOBO_PORT=8789 python aozora_kobo.py     # Webサーバ
+```
+
+## ライセンス
+
+コードは AGPL-3.0-or-later、データは CC BY 4.0 基本（../../docs/LICENSING.md）。

@@ -189,7 +189,7 @@ def parse(text: str, image_base: str = '',
     image_base: 挿絵ファイルを解決するベースURL（例 ミラーの files/ ディレクトリ）。
                 指定時は 挿絵の src を image_base + ファイル名 にする。
     keep_blank_lines: True で空行を空段落（segments=[]）として保持する。
-                公式HTMLの <br /> 忠実再現（pyaozora）用。既定は従来どおり空行を捨てる。
+                公式HTMLの <br /> 忠実再現（official）用。既定は従来どおり空行を捨てる。
     unknown_notes: list を渡すと、パーサが解釈できず除去した注記（［＃…］の中身）を
                 収集する。工作員ツールの検査用 —— 何が捨てられたかを可視化する。
     """

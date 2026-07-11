@@ -1,7 +1,7 @@
 """ゴールデンファイル比較 ── 生成HTMLが公式ファイルと一致することを検証。
 
 入力（注記付きテキスト）と正解出力（公式XHTML）の両方が、青空文庫リポジトリ
-（aozorabunko/aozorabunko）に存在する。この検証可能性こそ pyaozora の核心。
+（aozorabunko/aozorabunko）に存在する。この検証可能性こそ official の核心。
 同梱のパブリックドメイン作品で **バイト単位の一致** を担保する。
 """
 import io

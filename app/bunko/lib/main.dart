@@ -3,7 +3,7 @@
 /// サーバなし。同梱の aozora.db（書架メタ＋一部本文/図書カード）と
 /// IPAex明朝（JIS X 0213全外字入り）だけで動き、未取得の本文は
 /// GitHubミラーから読者の手元に取得する（以後オフライン）。
-/// 設計は aozorabunko-py/DESIGN.md（正本はテキスト・Unicodeが一次表現）。
+/// 設計は docs/DESIGN.md（正本はテキスト・Unicodeが一次表現）。
 library;
 
 import 'dart:convert';

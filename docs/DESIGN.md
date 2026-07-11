@@ -6,13 +6,14 @@
 
 ```
 bunko/
-├── app/bunko/        # Flutter 読者アプリ（lib/ web/ linux/ test/）
-├── app/pykobo/         # 青空工房 ── Flet 工作員ツール（検査・資産・検証）
+├── app/bunko/        # Flutter 読者アプリ（web/linux/android/ios/macos/windows）
 │   └── assets -> ../../assets   # symlink（Flutterはリポ外パスを参照できないため）
-├── packages/
-│   └── pybunko/       # Python中核（PyPI名 pybunko）: 正本→Unicode Document→JSON/SQLite/EPUB/…（88テスト）
-├── assets/            # 共有データ資産（aozora.db・IPAex明朝・jis2ucs.json・cp932.bin）
-└── docs/              # この設計書・マニュアル（正本）
+├── app/pykobo/       # 青空工房 ── Flet 工作員アプリ
+│   ├── pybunko/      #   Python側の全コード（中核＋official＋fonts・98テスト）
+│   └── tests/        #   ※PyPIには個別登録しない（ローカル編集インストール専用）
+├── assets/           # 共有データ資産（aozora.db・IPAex明朝・jis2ucs.json・cp932.bin）
+├── tools/            # build_assets.py・build_gaiji_table.py・examples/
+└── docs/             # この設計書・マニュアル・LICENSING（正本）
 ```
 
 ## 0. 一言要約
@@ -39,7 +40,7 @@ bunko/
 │  ・作家別作品一覧CSV（カタログ）                             │
 └──────────────┬─────────────────────────────────┘
                │ 取得は必ずキャッシュ経由
-┌─ 変換層（Python: aozorabunko）─────────────────────────┐
+┌─ 変換層（Python: pybunko）───────────────────────────┐
 │ parse: 注記 → Document（外字・アクセントをUnicodeに解決）      │
 │ catalog/card: カタログ・図書カード → 構造化メタ               │
 └──────────────┬─────────────────────────────────┘
@@ -65,10 +66,10 @@ bunko/
 | 1 | **Unicode中間表現** | 外字を画像でなく実文字に。選択・検索・読み上げが効き、フォント1つで描ける。器は後からいくらでも生成できる |
 | 2 | **SQLite＋JSON** | 書架・図書カードのメタは SQLite（検索・集計・結合が速い、標準lib）。本文・カードの細部は正規化せず doc/card 列に JSON のまま |
 | 3 | **読者アプリは Flutter** | 1コードで Web/iOS/Android/デスクトップ。テキスト描画性能・フォント同梱・配布性。**Flutter Webで足りるので静的XHTMLは不要**（器はデータから随時生成） |
-| 4 | **工作員ツールは Flet** | 変換・校正・検証は Python パイプライン（aozorabunko/pyaozora）と**同一言語・同一プロセス**で直接呼べるのが速い。工作員は少数でPython環境を持てる。読者向けの配布品質は不要 |
+| 4 | **工作員ツールは Flet** | 変換・校正・検証は Python パイプライン（pybunko）と**同一言語・同一プロセス**で直接呼べるのが速い。工作員は少数でPython環境を持てる。読者向けの配布品質は不要 |
 | 5 | **外字はフォントで**（画像廃止） | 真の外字（JIS X 0208外）は4,330字→WOFF2約2.8MB。アプリに1フォント同梱すれば全外字を実文字表示。作品単位なら数KB（使用字のみサブセット） |
-| 6 | **公式XHTML再現は凍結維持** | pyaozora の image既定はバイト完全一致（走れメロス・桜の樹）。兄弟実装・検証器として価値はあるが、以後は投資しない（ADR-3の帰結） |
-| 7 | **ゼロ依存コア** | aozorabunko 本体は標準ライブラリのみ。epub/washi/parquet/font はエクストラ。ビルド時のみの依存（pyyaml/fonttools）は実行時に持ち込まない |
+| 6 | **公式XHTML再現は凍結維持** | pybunko.official の image既定はバイト完全一致（走れメロス・桜の樹）。兄弟実装・検証器として価値はあるが、以後は投資しない（ADR-3の帰結） |
+| 7 | **ゼロ依存コア** | pybunko 本体は標準ライブラリのみ。epub/washi/parquet/font はエクストラ。ビルド時のみの依存（pyyaml/fonttools）は実行時に持ち込まない |
 | 8 | **傍点等の上流還元** | CJK組版の汎用機能は aiseed-dev スタック（mdit-py-cjk-friendly / washi-md）へ還元し、青空側は利用者になる（bouten プラグイン `[対象]{.class}`） |
 
 ## 4. リポジトリ構成と責務
@@ -117,7 +118,7 @@ works(work_id PK, title, title_yomi, author, author_yomi,
 
 ## 6. アプリ設計
 
-### 6.1 Flutter 読者アプリ（次の主作業・未着手）
+### 6.1 Flutter 読者アプリ（app/bunko ── 完成・v0.1.0）
 
 - **同梱**: `aozora.db`（メタ5.6MB。人気作品の doc を事前充填してもよい）、
   外字フォント `aozora-gaiji.woff2`（2.8MB）または IPAex明朝まるごと。
@@ -130,13 +131,13 @@ works(work_id PK, title, title_yomi, author, author_yomi,
   （flutter_svg_cjk_friendly の縦書き知見を流用）。**外字は普通のテキスト描画**（それがこの設計の成果）。
 - プロトタイプの意匠・挙動は examples の2つのビューア（書架・縦書き読書）が仕様を兼ねる。
 
-### 6.2 Flet 工作員ツール（aozora-tegami を再定義）
+### 6.2 Flet 工作員アプリ（app/pykobo ── 青空工房）
 
 - **役割**: 読者向けではなく**工作員（入力・校正・保守）向け**。Pythonパイプラインを直接呼ぶ。
   - 新規作品の変換確認: 注記テキスト → Document → プレビュー（未対応注記の検出）
   - 外字解決チェック: 未解決（〓）一覧・面区点の確認
   - データ資産の構築: `build_sqlite`（メタ/doc/card）・フォント生成
-  - pyaozora ゴールデン検証: 公式HTMLとの diff 表示
+  - official（公式XHTML）ゴールデン検証: 正解HTMLとの diff 表示
 - 既存の `aozora_shinkan.py`（Fletリーダー）は工作員のプレビューベンチとして温存。
   `aozora2epub.py` / `aozora_tts.py` も工作員ツール群の一部。
 
@@ -147,13 +148,13 @@ works(work_id PK, title, title_yomi, author, author_yomi,
 2. ~~Flet 工作員ツールの再構成~~ → **完成（青空工房 aozora_kobo.py）**: 検査/資産/検証の3タブ
 3. 共著の正規化（work_authors テーブル）が必要になったら追加
 4. 注記の追加対応（訓点・送り仮名・字の大きさ・罫囲み等）── MANUAL §5.1 のリズムで
-5. 公開: GitHub push → PyPI（`aozorabunko`・`pyaozora` 名は確保可能を確認済み）→
-   aozorahack への提示（「サーバを増やさない実装例」として）
+5. 公開: ~~GitHub push~~（済: aiseed-dev/bunko）。PyPIへの個別登録はしない（ユーザー決定）。
+   次は aozorahack への提示（「サーバを増やさない実装例」として）
 
 ## 8. 検証の考え方
 
 - **オフライン再現性**: 全テストは urlopen 遮断で回る（正本キャッシュ同梱）。
-- **ゴールデン**: pyaozora は公式XHTMLとバイト比較（入力と正解が両方ミラーにある）。
+- **ゴールデン**: pybunko.official は公式XHTMLとバイト比較（入力と正解が両方ミラーにある）。
 - **回帰の基準作品**: 走れメロス（ルビ）・吾輩は猫である（長編・外字35）・山月記（外字22）・
   変身（翻訳者）・風の又三郎（挿絵）。
-- 現在: aozorabunko 87 / pyaozora 10 / mdit-py 52 / washi-md 23 ＝ **172テスト グリーン**。
+- 現在: pybunko 98 / Flutter 13（＋外部リポ: mdit-py 52 / washi-md 23）＝ **111＋75テスト グリーン**。
