@@ -109,6 +109,20 @@ class Document:
         from .formats import to_speech_text
         return to_speech_text(self)
 
+    def to_markdown(self) -> str:
+        from .formats import to_markdown
+        return to_markdown(self)
+
+    def to_washi_html(self, vertical: bool = True, **kwargs) -> str:
+        """縦書き等の組版HTML（要 [washi] エクストラ / aiseed-dev washi-md）。"""
+        from .formats import to_washi_html
+        return to_washi_html(self, vertical=vertical, **kwargs)
+
+    def to_pdf(self, path: str, vertical: bool = True, **kwargs) -> str:
+        """PDF組版（washi-md 経由・ヘッドレスChrome必須）。"""
+        from .formats import to_pdf
+        return to_pdf(self, path, vertical=vertical, **kwargs)
+
 
 def parse(text: str, image_base: str = '') -> Document:
     """注記付きテキスト全文 → Document

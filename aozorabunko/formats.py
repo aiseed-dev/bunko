@@ -131,3 +131,58 @@ def to_speech_text(doc: Document) -> list[str]:
         text = _STRIP_RE.sub('', p.reading).strip()
         sentences += [s.strip() for s in _SENT_RE.split(text) if s.strip()]
     return sentences
+
+
+# ── washi-md 連携（縦書き・原稿用紙・PDF組版）─────────────────────
+# 依存は [washi] エクストラ（aiseed-dev/washi-md）。本体のゼロ依存は崩さない。
+
+def to_markdown(doc: Document) -> str:
+    """Document → Markdown（dendenルビ `{漢字|かんじ}`）。
+
+    washi-md / mdit-py-cjk-friendly の入力形式。ルビはよみデータとして
+    `{base|reading}` に、太字/斜体は **/* に、その他の装飾はHTMLで渡す
+    （washi-md は html:True で通す）。見出しは # の深さで表す。
+    """
+    lines = []
+    for p in doc.paragraphs:
+        if p.image:
+            src, _w, _h, cap = p.image
+            lines += [f'![{cap}]({src})', '']
+            continue
+        text = ''.join(
+            ('{' + t + '|' + r + '}') if r else t for t, r in p.segments)
+        for target, cls, tag in (p.decorations or []):
+            if cls == 'futoji':
+                text = text.replace(target, f'**{target}**', 1)
+            elif cls == 'shatai':
+                text = text.replace(target, f'*{target}*', 1)
+            else:  # 傍点・傍線など Markdown に無い装飾はHTMLで（washi passthrough）
+                text = text.replace(
+                    target, f'<{tag} class="{cls}">{target}</{tag}>', 1)
+        if p.heading_level:            # 大=2→#, 中=3→##, 小=4→###
+            text = '#' * (p.heading_level - 1) + ' ' + text
+        lines += [text, '']
+    return '\n'.join(lines).strip() + '\n'
+
+
+def to_washi_html(doc: Document, vertical: bool = True,
+                  genko: bool = False, theme: str = 'default', **kwargs) -> str:
+    """washi-md で縦書き等の組版HTMLを返す（要 `pip install aozorabunko[washi]`）。"""
+    import washi_md
+    return washi_md.render(to_markdown(doc), title=doc.title,
+                           vertical=vertical, genko=genko, theme=theme, **kwargs)
+
+
+def to_pdf(doc: Document, path: str, vertical: bool = True, **kwargs) -> str:
+    """washi-md 経由でPDFを書き出す（ヘッドレスChrome必須）。パスを返す。"""
+    import tempfile
+    from pathlib import Path
+
+    import washi_md
+    html_str = to_washi_html(doc, vertical=vertical, **kwargs)
+    with tempfile.NamedTemporaryFile('w', suffix='.html', delete=False,
+                                     encoding='utf-8') as f:
+        f.write(html_str)
+        tmp = Path(f.name)
+    washi_md.to_pdf(tmp, Path(path))
+    return path
