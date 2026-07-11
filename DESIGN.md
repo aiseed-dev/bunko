@@ -65,7 +65,7 @@
 | **aozorabunko-py** | 変換・データ | 正本→Document(Unicode)→JSON/SQLite/EPUB/…。カタログ・図書カード。**中核** | 87テスト |
 | **pyaozora** | 検証・フォント | 公式XHTML再現（凍結維持）／外字フォント資産（gaiji_charset・build_gaiji_font・サブセット埋め込み） | 10テスト |
 | **aozora-tegami** | 工作員 | **Flet 工作員ツール**（変換プレビュー・EPUB・TTS。読者リーダーの役目は Flutter アプリへ移管） | — |
-| （新設予定）aozora_flutter | 読者 | **Flutter 読者アプリ**。aozora.db＋外字フォント同梱。書架→図書カード→縦書き読書 | 未着手 |
+| **bunko** | 読者 | **Flutter 読者アプリ**（dev.aiseed.bunko）。aozora.db＋IPAex明朝同梱。書架→図書カード→読書（横/縦書き）。Web/Linuxビルド済 | 13テスト |
 | aiseed-dev/washi-md | 組版 | Markdown→縦書き/原稿用紙/PDF（[washi]で委譲） | 23テスト |
 | aiseed-dev/mdit-py-cjk-friendly | 組版基盤 | CJK対応 markdown-it-py（ルビ・傍点bouten） | 52テスト |
 | aiseed-dev/flutter_svg_cjk_friendly | Flutter補助 | SVGのCJK font/縦書き修正（Flutterアプリで必要時） | — |
@@ -131,7 +131,8 @@ works(work_id PK, title, title_yomi, author, author_yomi,
 
 ## 7. ロードマップ
 
-1. **Flutter 読者アプリの起工**（書架→カード→縦書き読書。db+フォント同梱）
+1. ~~Flutter 読者アプリの起工~~ → **完成（bunko v0.1.0）**。次: Android/iOSビルド・
+   Web版のIndexedDB永続化・縦書きの禁則/挿絵対応・アプリ内の底本更新
 2. Flet 工作員ツールの再構成（変換確認・外字チェック・DB構築をタブに）
 3. 共著の正規化（work_authors テーブル）が必要になったら追加
 4. 注記の追加対応（訓点・送り仮名・字の大きさ・罫囲み等）── MANUAL §5.1 のリズムで
