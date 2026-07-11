@@ -161,8 +161,9 @@ def to_markdown(doc: Document) -> str:
     """Document → Markdown（dendenルビ `{漢字|かんじ}`）。
 
     washi-md / mdit-py-cjk-friendly の入力形式。ルビはよみデータとして
-    `{base|reading}` に、太字/斜体は **/* に、その他の装飾はHTMLで渡す
-    （washi-md は html:True で通す）。見出しは # の深さで表す。
+    `{base|reading}` に、太字/斜体は **/* に、傍点・傍線（em）は
+    mdit-py-cjk-friendly の bouten プラグイン記法 `[対象]{.class}` に、
+    その他（sub/sup）はHTMLで渡す。見出しは # の深さで表す。
     """
     lines = []
     for p in doc.paragraphs:
@@ -174,12 +175,14 @@ def to_markdown(doc: Document) -> str:
             ('{' + t + '|' + r + '}') if r else t for t, r in p.segments)
         for target, cls, tag in (p.decorations or []):
             if cls == 'futoji':
-                text = text.replace(target, f'**{target}**', 1)
+                repl = f'**{target}**'
             elif cls == 'shatai':
-                text = text.replace(target, f'*{target}*', 1)
-            else:  # 傍点・傍線など Markdown に無い装飾はHTMLで（washi passthrough）
-                text = text.replace(
-                    target, f'<{tag} class="{cls}">{target}</{tag}>', 1)
+                repl = f'*{target}*'
+            elif tag == 'em':   # 傍点・傍線 → bouten プラグインのクラス付きスパン
+                repl = f'[{target}]{{.{cls}}}'
+            else:               # sub/sup 等は washi の html:True で通す
+                repl = f'<{tag} class="{cls}">{target}</{tag}>'
+            text = text.replace(target, repl, 1)
         if p.heading_level:            # 大=2→#, 中=3→##, 小=4→###
             text = '#' * (p.heading_level - 1) + ' ' + text
         lines += [text, '']
