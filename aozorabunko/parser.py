@@ -123,6 +123,63 @@ class Document:
         from .formats import to_pdf
         return to_pdf(self, path, vertical=vertical, **kwargs)
 
+    def to_dict(self) -> dict:
+        """素直な dict へ（Flutter/Dart 等がそのまま読める Unicode一次データ）。
+
+        外字・アクセントは解決済みの実Unicode文字。これさえ持っていれば、
+        表示（Flutter）も他形式（HTML/EPUB/…）も後から生成できる ── 器ではなく
+        このデータが残すべき一次表現。空フィールドは省いて素直・軽量に保つ。
+        """
+        paras = []
+        for p in self.paragraphs:
+            d: dict = {'seg': [{'t': t} if r is None else {'t': t, 'r': r}
+                               for t, r in p.segments]}
+            if p.heading_level:
+                d['h'] = p.heading_level
+                if p.heading_type:
+                    d['htype'] = p.heading_type
+            if p.indent:
+                d['indent'] = p.indent
+            if p.align:
+                d['align'] = p.align
+                if p.align_offset:
+                    d['align_offset'] = p.align_offset
+            if p.jizume:
+                d['jizume'] = p.jizume
+            if p.decorations:
+                d['deco'] = [{'t': t, 'cls': c, 'tag': g}
+                             for t, c, g in p.decorations]
+            if p.image:
+                s, w, h, cap = p.image
+                d['image'] = {'src': s, 'w': w, 'h': h, 'cap': cap}
+            paras.append(d)
+        return {'title': self.title, 'author': self.author,
+                'colophon': self.colophon, 'paragraphs': paras}
+
+    def to_json(self, *, ensure_ascii: bool = False, **kwargs) -> str:
+        """to_dict() を JSON 文字列に（既定は非ASCIIをそのまま＝実Unicode文字）。"""
+        import json
+        return json.dumps(self.to_dict(), ensure_ascii=ensure_ascii, **kwargs)
+
+    @classmethod
+    def from_dict(cls, d: dict) -> 'Document':
+        """to_dict() の逆。Unicode一次データから Document を復元（往復可能）。"""
+        paras = []
+        for pd in d['paragraphs']:
+            segs = [(s['t'], s.get('r')) for s in pd['seg']]
+            deco = ([(x['t'], x['cls'], x['tag']) for x in pd['deco']]
+                    if pd.get('deco') else None)
+            img = pd.get('image')
+            image = (img['src'], img['w'], img['h'], img['cap']) if img else None
+            paras.append(Paragraph(
+                segments=segs, heading_level=pd.get('h', 0),
+                heading_type=pd.get('htype'), decorations=deco,
+                indent=pd.get('indent', 0), align=pd.get('align'),
+                align_offset=pd.get('align_offset', 0),
+                jizume=pd.get('jizume', 0), image=image))
+        return cls(title=d['title'], author=d['author'],
+                   paragraphs=paras, colophon=d.get('colophon', ''))
+
 
 def parse(text: str, image_base: str = '',
           keep_blank_lines: bool = False) -> Document:

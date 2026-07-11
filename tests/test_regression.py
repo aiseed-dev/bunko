@@ -48,6 +48,21 @@ def test_to_epub(merosu_doc, tmp_path):
     assert out.exists() and out.stat().st_size > 0
 
 
+def test_json_roundtrip(merosu_doc):
+    """Unicode一次データ（JSON）だけで Document を完全復元でき、同じ出力になる。"""
+    import json
+    from aozorabunko import Document
+    d = json.loads(merosu_doc.to_json())
+    assert d['title'] == '走れメロス' and d['author'] == '太宰治'
+    assert d['paragraphs'][0]['seg']              # セグメントが入っている
+    # 往復: JSON → Document → 同じHTML・同じ読み上げ
+    back = Document.from_dict(d)
+    assert back.to_html() == merosu_doc.to_html()
+    assert back.to_speech_text() == merosu_doc.to_speech_text()
+    # ルビは読みデータとして保持される
+    assert any('r' in s for p in d['paragraphs'] for s in p['seg'])
+
+
 def test_keep_blank_lines():
     """keep_blank_lines=True で空行が空段落として保持される（pyaozora向け）。"""
     from aozorabunko import parse
