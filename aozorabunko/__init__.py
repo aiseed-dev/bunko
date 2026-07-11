@@ -11,8 +11,8 @@
 """
 from .catalog import Library, Work, MIRROR
 from .parser import parse, Document, Paragraph
-from . import gaiji, decorate, accent
+from . import gaiji, decorate, accent, corpus
 
 __version__ = '0.1.0'
 __all__ = ['Library', 'Work', 'parse', 'Document', 'Paragraph', 'MIRROR',
-           'gaiji', 'decorate', 'accent']
+           'gaiji', 'decorate', 'accent', 'corpus']

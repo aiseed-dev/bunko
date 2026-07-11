@@ -80,7 +80,9 @@ doc.to_html() / to_epub(path) / to_speech_text()
 - [x] 欧文アクセント分解（`〔e'〕` → é）
 - [x] 挿絵（`［＃…（fig….png…）入る］` → ミラーURLの画像参照）
 - [x] 縦書き・PDF組版（[washi] エクストラで [washi-md](https://github.com/aiseed-dev/washi-md) に委譲）
-- [ ] Parquet一括エクスポート（全作品コーパスをデータ分析へ）
+- [x] Parquet一括エクスポート（全作品コーパスをデータ分析へ。[parquet] エクストラ）
+- [ ] 公式互換HTML `to_html(compat='aozora')`（aozora2htmlの兄弟実装）
+- [ ] 傍点・複合ルビを mdit-py-cjk-friendly へ上流還元
 
 ## ライセンス
 

@@ -119,6 +119,30 @@ class Library:
         return [w for w in self.works
                 if author in w.author or author in w.author_yomi]
 
+    def export_parquet(self, path: str, works: list[Work] | None = None,
+                       granularity: str = 'paragraph',
+                       limit: int | None = None) -> str:
+        """作品コーパスを Parquet に書き出す（要 `[parquet]` エクストラ）。
+
+        granularity='paragraph'（段落1件=1行）/ 'work'（作品1件=1行）。
+        取得はキャッシュ経由。取得やパースに失敗した作品はスキップする。
+        """
+        from . import corpus
+        targets = list(works if works is not None else self.works)
+        if limit is not None:
+            targets = targets[:limit]
+        rows: list[dict] = []
+        for w in targets:
+            try:
+                doc = w.document()
+            except Exception:
+                continue  # 取得・パース不能な作品は飛ばす（全体を止めない）
+            if granularity == 'work':
+                rows.append(corpus.work_row(w, doc))
+            else:
+                rows.extend(corpus.paragraph_rows(w, doc))
+        return corpus.to_parquet(rows, path)
+
 
 def _fetch(url: str, cache: Path) -> bytes:
     if cache.exists():

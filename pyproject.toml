@@ -17,6 +17,8 @@ epub = ["ebooklib>=0.18"]
 # 縦書き・原稿用紙・PDF組版は aiseed-dev/washi-md に委譲（Phase 7 で結線）。
 # 現状 washi-md は git インストール。本体既定には含めない。
 washi = ["washi-md>=0.8"]
+# 全作品コーパスの列指向エクスポート（研究・NLP・RAG向け）
+parquet = ["pyarrow>=14"]
 
 [tool.setuptools]
 packages = ["aozorabunko"]
