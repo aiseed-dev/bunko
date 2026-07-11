@@ -3,12 +3,12 @@
 aozora_kobo.py — 青空工房（工作員の作業台・Flet）
 
 工作員（入力・校正・保守）向けの統合ツール。Pythonパイプライン
-（aozorabunko / pyaozora）を同一プロセスで直接呼ぶ ── これがFlet採用の理由
+（pybunko）を同一プロセスで直接呼ぶ ── これがFlet採用の理由
 （DESIGN.md ADR-4）。3つのタブ:
 
   検査 …… 作品の変換結果を点検（未対応注記・未解決外字〓・統計・プレビュー）
   資産 …… 読者アプリ(bunko)に同梱するデータ資産を作る（書架DB・目次JSON・外字フォント）
-  検証 …… pyaozora の公式XHTML再現を、ミラーの正解HTMLと突き合わせ（diff表示）
+  検証 …… pybunko.official の公式XHTML再現を、ミラーの正解HTMLと突き合わせ（diff表示）
 
 実行:  flet run aozora_kobo.py     （Web版: flet run --web aozora_kobo.py）
 """
@@ -21,8 +21,8 @@ from pathlib import Path
 
 import flet as ft
 
-from aozorabunko import Library, Work, parse
-from aozorabunko.gaiji import resolve_note_body
+from pybunko import Library, Work, parse
+from pybunko.gaiji import resolve_note_body
 
 # ================= 意匠（読者アプリと同じ和紙×朱） =================
 PAPER, PAPER_HI = '#E7E2D4', '#EEE9DC'
@@ -63,8 +63,8 @@ def inspect_work(text: str) -> dict:
 
 
 def golden_check(work: Work) -> dict:
-    """pyaozora の公式XHTML再現を、ミラーの正解HTMLとdiff比較。"""
-    from pyaozora import to_official_html
+    """pybunko.official の公式XHTML再現を、ミラーの正解HTMLとdiff比較。"""
+    from pybunko import to_official_html
     card = work.card()
     files = card.get('files', [])
     html_name = None
@@ -215,7 +215,7 @@ def main(page: ft.Page):
         log(f'書架DBを作成中…（本文 {limit} 作品）')
         _LIB.build_sqlite(str(p), documents=limit > 0, cards=limit > 0,
                           limit=(limit if limit > 0 else None))
-        from aozorabunko import db as adb
+        from pybunko import db as adb
         st = adb.stats(str(p))
         log(f'✓ {p}: {p.stat().st_size/1024/1024:.1f} MB  {st}', OK)
 
@@ -226,7 +226,7 @@ def main(page: ft.Page):
         log(f'✓ {p}: {p.stat().st_size/1024:.0f} KB', OK)
 
     def build_font(out: Path):
-        from pyaozora import fonts
+        from pybunko import fonts
         p = out / 'aozora-gaiji.woff2'
         log('外字サブセットフォントを生成中…（真の外字4,330字）')
         data = fonts.build_gaiji_font(out_path=str(p))
@@ -252,7 +252,7 @@ def main(page: ft.Page):
                              on_submit=lambda e: ver_search())
     ver_results = ft.ListView(height=160, spacing=2)
     ver_report = ft.ListView(expand=True, spacing=4, padding=10)
-    ver_status = status_text('pyaozora の生成HTMLを、ミラーの正解HTMLとdiff比較します')
+    ver_status = status_text('pybunko.official の生成HTMLを、ミラーの正解HTMLとdiff比較します')
 
     def ver_search():
         hits = _LIB.search(ver_query.value or '')

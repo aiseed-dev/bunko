@@ -14,7 +14,7 @@ aozora_shinkan.py — 青空文庫リーダー「もうひとつの新館」
 静的なテキストの正本さえ生きていれば、検索も、ルビ付き表示も、
 文字サイズ調整も、すべて読者の手元で実現できる──それだけを示すアプリです。
 
-検索・取得・パースは `aozorabunko` ライブラリに委譲しています
+検索・取得・パースは `pybunko` ライブラリに委譲しています
 （このアプリはライブラリの利用例。外字・アクセントも解決されて表示されます）。
 """
 from __future__ import annotations
@@ -24,9 +24,9 @@ import os
 
 import flet as ft
 
-from aozorabunko import Library, Work, parse
+from pybunko import Library, Work, parse
 
-# ================= データ層（aozorabunko に委譲・自前ロジックを持たない） =================
+# ================= データ層（pybunko に委譲・自前ロジックを持たない） =================
 # 依存はGitHubミラーの静的ファイルのみ。キャッシュはローカルの
 # aozora_cache/（同梱デモzip込み）に置き、二度目からオフラインで動く。
 
@@ -36,7 +36,7 @@ _LIB = Library(cache_dir='aozora_cache')
 
 
 # 外字はUnicodeの実文字として表示する（画像も注記も使わない）。
-# aozorabunko が第3・第4水準の外字をUnicodeに解決済みなので、
+# pybunko が第3・第4水準の外字をUnicodeに解決済みなので、
 # JIS X 0213を持つフォントを1つ指定すれば全部そのまま描ける ── これがこのアプリの肝。
 _FONT_CANDIDATES = [
     '/usr/share/fonts/opentype/ipaexfont-mincho/ipaexm.ttf',   # IPAex明朝（JIS X 0213）
@@ -117,7 +117,7 @@ def main(page: ft.Page):
     page.padding = 16
 
     # JIS X 0213対応フォントを1つ指定すれば、外字も実Unicode文字としてそのまま表示できる。
-    # （用意する場合は `python -m pyaozora.fonts assets/aozora-gaiji.woff2` で
+    # （用意する場合は `python -m pybunko.fonts assets/aozora-gaiji.woff2` で
     #  全外字4,330字ぶんの軽量サブセット≈2.8MBを作って同梱してもよい）
     _font = find_cjk_font()
     if _font:

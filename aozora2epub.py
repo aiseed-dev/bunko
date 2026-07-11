@@ -2,14 +2,14 @@
 """
 aozora2epub.py — 青空文庫の注記付きテキストを EPUB に変換する
 
-`aozorabunko` ライブラリの最初の利用例。パース・変換ロジックは持たず、
+`pybunko` ライブラリの利用例。パース・変換ロジックは持たず、
 ライブラリに委譲する（＝サーバを増やさない実装の、さらにその上の薄い層）。
 
 使い方:
     python aozora2epub.py <zipのURL or ローカルzip/txt> [出力.epub]
 
 ライブラリが対応する注記（外字・見出し・字下げ・傍点・アクセント・挿絵・ルビ）が
-そのまま活きる。`pip install aozorabunko[epub]` が必要。
+そのまま活きる。`pip install pybunko[epub]` が必要。
 """
 import io
 import sys
@@ -17,7 +17,7 @@ import zipfile
 import urllib.request
 from pathlib import Path
 
-from aozorabunko import parse
+from pybunko import parse
 
 
 def load_text(src: str) -> str:
