@@ -63,9 +63,8 @@
 | リポジトリ | 層 | 責務 | 状態 |
 |---|---|---|---|
 | **aozorabunko-py** | 変換・データ | 正本→Document(Unicode)→JSON/SQLite/EPUB/…。カタログ・図書カード。**中核** | 87テスト |
-| **pyaozora** | 検証・フォント | 公式XHTML再現（凍結維持）／外字フォント資産（gaiji_charset・build_gaiji_font・サブセット埋め込み） | 10テスト |
 | **aozora-tegami** | 工作員 | **Flet 工作員ツール**（変換プレビュー・EPUB・TTS。読者リーダーの役目は Flutter アプリへ移管） | — |
-| **bunko** | 読者 | **Flutter 読者アプリ**（dev.aiseed.bunko）。aozora.db＋IPAex明朝同梱。書架→図書カード→読書（横/縦書き）。Web/Linuxビルド済 | 13テスト |
+| **bunko** | 読者＋資産 | **Flutter 読者アプリ**（dev.aiseed.bunko）＋ **pyaozora サブパッケージ統合**（外字フォント資産づくり／公式XHTML再現=凍結維持・ゴールデン検証）。aozora.db＋IPAex明朝同梱。Web/Linuxビルド済 | 13＋10テスト |
 | aiseed-dev/washi-md | 組版 | Markdown→縦書き/原稿用紙/PDF（[washi]で委譲） | 23テスト |
 | aiseed-dev/mdit-py-cjk-friendly | 組版基盤 | CJK対応 markdown-it-py（ルビ・傍点bouten） | 52テスト |
 | aiseed-dev/flutter_svg_cjk_friendly | Flutter補助 | SVGのCJK font/縦書き修正（Flutterアプリで必要時） | — |
