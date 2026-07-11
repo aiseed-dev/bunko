@@ -71,7 +71,27 @@ from aozorabunko import Library
 lib = Library()                          # ミラーの作品リストCSVを取得（以後キャッシュ）
 lib.export_json('aozora.jsonl', limit=100)   # 1作品1行の JSONL
 lib.export_parquet('aozora.parquet')         # 段落単位の列指向（研究・NLP）
+lib.index()                                  # 作家別目次（書架）データ
 ```
+
+### メタデータは SQLite、本文の細部は JSON のまま
+
+図書カード・書架情報（検索やインデックスで引くもの）は **SQLite**（標準ライブラリ
+`sqlite3`・ゼロ依存）へ。作品本文の構造化データは細かいので、正規化せず
+`works.doc` 列に **JSON のまま**載せる（必要時に取得して埋める）。
+
+```python
+lib.build_sqlite('aozora.db')                        # メタデータ（約1秒・全作品）
+lib.build_sqlite('aozora.db', documents=True, limit=100)  # 本文JSONも埋める
+
+from aozorabunko import db
+db.search('aozora.db', '芥川')          # メタ検索（速い・部分一致）
+db.authors('aozora.db')                 # 書架（作家別作品数・よみ順）
+doc = db.load_document('aozora.db', '000074')   # 本文JSON → dict（無ければNone）
+```
+
+`works` テーブル: work_id(PK) / title / title_yomi / author / author_yomi / row(五十音行) /
+card_url / text_url / copyrighted / **doc(本文JSON)**。再ビルドでメタは更新、doc は保持。
 
 ---
 

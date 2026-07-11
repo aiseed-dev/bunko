@@ -143,6 +143,28 @@ class Library:
                 rows.extend(corpus.paragraph_rows(w, doc))
         return corpus.to_parquet(rows, path)
 
+    def build_sqlite(self, path: str, works: list[Work] | None = None,
+                     documents: bool = False, limit: int | None = None) -> str:
+        """図書カード・書架情報を SQLite に。documents=True で本文JSONも埋める。
+
+        メタデータは即（カタログCSVから）。本文（doc列）は重いので既定は入れない。
+        依存は標準ライブラリ sqlite3 のみ。
+        """
+        from . import db
+        targets = list(works if works is not None else self.works)
+        if limit is not None:
+            targets = targets[:limit]
+        db.build_catalog(targets, path)
+        if documents:
+            items = []
+            for w in targets:
+                try:
+                    items.append((w.work_id, w.document().to_dict()))
+                except Exception:
+                    continue
+            db.store_documents(path, items)
+        return path
+
     def index(self, works: list[Work] | None = None) -> list[dict]:
         """作家別の目次データ（書架）。カタログから即・構造化データで返す。"""
         from . import corpus

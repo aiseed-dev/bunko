@@ -11,10 +11,10 @@
 """
 from .catalog import Library, Work, MIRROR
 from .parser import parse, Document, Paragraph
-from . import gaiji, decorate, accent, corpus, convert
+from . import gaiji, decorate, accent, corpus, convert, db
 from .convert import to_json, read_text
 
 __version__ = '0.1.0'
 __all__ = ['Library', 'Work', 'parse', 'Document', 'Paragraph', 'MIRROR',
-           'gaiji', 'decorate', 'accent', 'corpus', 'convert',
+           'gaiji', 'decorate', 'accent', 'corpus', 'convert', 'db',
            'to_json', 'read_text']
