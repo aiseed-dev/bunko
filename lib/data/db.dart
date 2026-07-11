@@ -1,0 +1,115 @@
+/// 書架DB —— 同梱 aozora.db（メタ＝表・本文/図書カード＝JSON列）への窓口。
+///
+/// 設計（DESIGN.md ADR-2）: 検索・集計はSQL、細部（doc/card）はJSONのまま。
+/// プラットフォーム別のオープンは条件付きインポート（io=ファイル / web=wasm）。
+library;
+
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:sqlite3/common.dart';
+
+import 'db_io.dart' if (dart.library.js_interop) 'db_web.dart';
+import 'models.dart';
+
+class BunkoDb {
+  final CommonDatabase _db;
+  BunkoDb._(this._db);
+
+  static Future<BunkoDb> open(Uint8List assetBytes) async =>
+      BunkoDb._(await openPlatformDatabase(assetBytes));
+
+  /// テスト用: 開き済みDBを包む
+  BunkoDb.wrap(CommonDatabase db) : _db = db;
+
+  WorkMeta _meta(Row r) => WorkMeta(
+        workId: r['work_id'] as String,
+        title: r['title'] as String,
+        titleYomi: (r['title_yomi'] as String?) ?? '',
+        author: r['author'] as String,
+        authorYomi: (r['author_yomi'] as String?) ?? '',
+        row: (r['row'] as String?) ?? 'その他',
+        cardUrl: (r['card_url'] as String?) ?? '',
+        textUrl: (r['text_url'] as String?) ?? '',
+        copyrighted: (r['copyrighted'] as int) != 0,
+        hasDoc: r['has_doc'] as int != 0,
+        hasCard: r['has_card'] as int != 0,
+      );
+
+  static const _cols = 'work_id,title,title_yomi,author,author_yomi,row,'
+      'card_url,text_url,copyrighted,'
+      '(doc IS NOT NULL) AS has_doc,(card IS NOT NULL) AS has_card';
+
+  /// 書架: 作家別の作品数（よみ順）。行タブでの絞り込みは row 引数で。
+  List<AuthorGroup> authors({String? row}) {
+    final where = row == null ? '' : 'WHERE row = ?';
+    final rs = _db.select(
+        'SELECT author,author_yomi,row,COUNT(*) AS c FROM works $where '
+        'GROUP BY author,author_yomi ORDER BY author_yomi',
+        row == null ? const [] : [row]);
+    return [
+      for (final r in rs)
+        AuthorGroup(r['author'] as String, r['author_yomi'] as String,
+            (r['row'] as String?) ?? 'その他', r['c'] as int)
+    ];
+  }
+
+  /// 作品名・著者名・よみ の部分一致検索
+  List<WorkMeta> search(String q, {int limit = 50}) {
+    final like = '%$q%';
+    final rs = _db.select(
+        'SELECT $_cols FROM works WHERE title LIKE ? OR title_yomi LIKE ? '
+        'OR author LIKE ? OR author_yomi LIKE ? '
+        'ORDER BY (title=?) DESC, author_yomi, title_yomi LIMIT ?',
+        [like, like, like, like, q, limit]);
+    return [for (final r in rs) _meta(r)];
+  }
+
+  /// 作家の全作品（作品よみ順）
+  List<WorkMeta> byAuthor(String author, String authorYomi) {
+    final rs = _db.select(
+        'SELECT $_cols FROM works WHERE author=? AND author_yomi=? '
+        'ORDER BY title_yomi, title',
+        [author, authorYomi]);
+    return [for (final r in rs) _meta(r)];
+  }
+
+  WorkMeta? work(String workId) {
+    final rs =
+        _db.select('SELECT $_cols FROM works WHERE work_id=?', [workId]);
+    return rs.isEmpty ? null : _meta(rs.first);
+  }
+
+  /// 本文（doc列のJSON）。未取得なら null。
+  Doc? loadDoc(String workId) {
+    final rs = _db.select('SELECT doc FROM works WHERE work_id=?', [workId]);
+    if (rs.isEmpty || rs.first['doc'] == null) return null;
+    return Doc.fromJson(
+        jsonDecode(rs.first['doc'] as String) as Map<String, dynamic>);
+  }
+
+  void saveDoc(String workId, Doc doc) {
+    _db.execute('UPDATE works SET doc=? WHERE work_id=?',
+        [jsonEncode(doc.toJson()), workId]);
+  }
+
+  /// 図書カード詳細（card列のJSON）。未取得なら null。
+  Map<String, dynamic>? loadCard(String workId) {
+    final rs = _db.select('SELECT card FROM works WHERE work_id=?', [workId]);
+    if (rs.isEmpty || rs.first['card'] == null) return null;
+    return jsonDecode(rs.first['card'] as String) as Map<String, dynamic>;
+  }
+
+  void saveCard(String workId, Map<String, dynamic> card) {
+    _db.execute('UPDATE works SET card=? WHERE work_id=?',
+        [jsonEncode(card), workId]);
+  }
+
+  ({int works, int authors, int docs}) stats() {
+    final r = _db.select('SELECT COUNT(*) AS n,'
+        'COUNT(DISTINCT author||author_yomi) AS a,'
+        'SUM(doc IS NOT NULL) AS d FROM works').first;
+    return (works: r['n'] as int, authors: r['a'] as int,
+        docs: (r['d'] as int?) ?? 0);
+  }
+}
