@@ -26,6 +26,23 @@ def midashi_class(level: int, type_: str | None) -> str:
     return _MIDASHI_TYPE_PREFIX.get(type_, '') + _MIDASHI_SIZE_NAME[level] + '-midashi'
 
 
+def _layout_class_style(p) -> tuple[list[str], list[str]]:
+    """段落のレイアウト属性 → (classes, styles)。aozora2html互換のクラス名。"""
+    classes, styles = [], []
+    if p.indent:
+        classes.append(f'jisage_{p.indent}')
+        styles.append(f'margin-left: {p.indent}em')
+    if p.align == 'right':
+        styles.append('text-align: right')
+        if p.align_offset:
+            classes.append(f'chitsuki_{p.align_offset}')
+            styles.append(f'margin-right: {p.align_offset}em')
+    if p.jizume:
+        classes.append(f'jizume_{p.jizume}')
+        styles.append(f'width: {p.jizume}em')
+    return classes, styles
+
+
 def to_html(doc: Document) -> str:
     """本文をHTML断片に（<ruby>タグ使用）"""
     out = []
@@ -38,11 +55,18 @@ def to_html(doc: Document) -> str:
             for t in p.emphasis:
                 inner = inner.replace(html.escape(t),
                                       f'<em class="bouten">{html.escape(t)}</em>', 1)
+        classes, styles = _layout_class_style(p)
         if p.heading_level:
-            cls = midashi_class(p.heading_level, p.heading_type)
-            out.append(f'<h{p.heading_level} class="{cls}">{inner}</h{p.heading_level}>')
+            tag = f'h{p.heading_level}'
+            classes.insert(0, midashi_class(p.heading_level, p.heading_type))
         else:
-            out.append(f'<p>{inner}</p>')
+            tag = 'p'
+        attr = ''
+        if classes:
+            attr += f' class="{" ".join(classes)}"'
+        if styles:
+            attr += f' style="{"; ".join(styles)}"'
+        out.append(f'<{tag}{attr}>{inner}</{tag}>')
     return '\n'.join(out)
 
 
