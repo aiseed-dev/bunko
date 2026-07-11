@@ -63,6 +63,20 @@ def test_json_roundtrip(merosu_doc):
     assert any('r' in s for p in d['paragraphs'] for s in p['seg'])
 
 
+def test_unknown_notes_collector():
+    """unknown_notes=list で、解釈できず除去した注記を収集できる（工作員ツール用）。"""
+    from aozorabunko import parse
+    notes = []
+    parse("題\n著\n\n本文［＃ページの左右中央］と［＃「行右小書き」は解釈される］続き"
+          "［＃改丁］。\n", unknown_notes=notes)
+    assert "ページの左右中央" in notes
+    assert "改丁" in notes
+    # 対応済みの注記（見出し・字下げ・傍点等）は混ざらない
+    notes2 = []
+    parse("題\n著\n\n［＃３字下げ］序［＃「序」は大見出し］\n", unknown_notes=notes2)
+    assert notes2 == []
+
+
 def test_keep_blank_lines():
     """keep_blank_lines=True で空行が空段落として保持される（pyaozora向け）。"""
     from aozorabunko import parse

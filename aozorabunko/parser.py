@@ -182,13 +182,16 @@ class Document:
 
 
 def parse(text: str, image_base: str = '',
-          keep_blank_lines: bool = False) -> Document:
+          keep_blank_lines: bool = False,
+          unknown_notes: list | None = None) -> Document:
     """注記付きテキスト全文 → Document
 
     image_base: 挿絵ファイルを解決するベースURL（例 ミラーの files/ ディレクトリ）。
                 指定時は 挿絵の src を image_base + ファイル名 にする。
     keep_blank_lines: True で空行を空段落（segments=[]）として保持する。
                 公式HTMLの <br /> 忠実再現（pyaozora）用。既定は従来どおり空行を捨てる。
+    unknown_notes: list を渡すと、パーサが解釈できず除去した注記（［＃…］の中身）を
+                収集する。工作員ツールの検査用 —— 何が捨てられたかを可視化する。
     """
     text = text.replace('\r\n', '\n')
     lines = text.split('\n')
@@ -216,7 +219,8 @@ def parse(text: str, image_base: str = '',
             if mc:
                 pending['parts'].append(mc.group('rest'))
                 p = _make_paragraph(''.join(pending['parts']),
-                                    pending['level'], pending['type'], image_base)
+                                    pending['level'], pending['type'], image_base,
+                                    unknown_notes)
                 _set_layout(p, pending['layout'])
                 paragraphs.append(p)
                 pending = None
@@ -235,7 +239,7 @@ def parse(text: str, image_base: str = '',
         if mb:
             p = _make_paragraph(mb.group('t'), _MIDASHI_SIZE[mb.group('lv')],
                                 _MIDASHI_TYPE.get(mb.group('type'), 'normal'),
-                                image_base)
+                                image_base, unknown_notes)
             _set_layout(p, layout)
             paragraphs.append(p)
             continue
@@ -253,12 +257,13 @@ def parse(text: str, image_base: str = '',
         if mi:
             p = _make_paragraph(mi.group('t'), _MIDASHI_SIZE[mi.group('lv')],
                                 _MIDASHI_TYPE.get(mi.group('type'), 'normal'),
-                                image_base)
+                                image_base, unknown_notes)
             _set_layout(p, layout)
             paragraphs.append(p)
             continue
 
-        p = _make_paragraph(line, image_base=image_base)
+        p = _make_paragraph(line, image_base=image_base,
+                            unknown_notes=unknown_notes)
         _set_layout(p, layout)
         paragraphs.append(p)
 
@@ -268,7 +273,8 @@ def parse(text: str, image_base: str = '',
 
 def _make_paragraph(line: str, heading_level: int = 0,
                     heading_type: str | None = None,
-                    image_base: str = '') -> Paragraph:
+                    image_base: str = '',
+                    unknown_notes: list | None = None) -> Paragraph:
     """1本の行テキスト → Paragraph（装飾・挿絵抽出・未対応注記除去・ルビ分割）。"""
     decorations = []
     for m in DECORATE_RE.finditer(line):
@@ -285,6 +291,8 @@ def _make_paragraph(line: str, heading_level: int = 0,
         image = (src, w, h, mimg.group('cap') or '')
         line = IMG_RE.sub('', line)
 
+    if unknown_notes is not None:  # 検査用: 何を捨てたかを記録
+        unknown_notes.extend(m[2:-1] for m in NOTE_RE.findall(line))
     line = NOTE_RE.sub('', line)  # 未対応注記は安全に除去
     return Paragraph(
         segments=_split_ruby(line),
