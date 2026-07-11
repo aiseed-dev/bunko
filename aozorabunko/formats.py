@@ -49,9 +49,29 @@ def _layout_class_style(p) -> tuple[list[str], list[str]]:
     return classes, styles
 
 
-def to_html(doc: Document) -> str:
-    """本文をHTML断片に（<ruby>タグ使用）"""
-    out = []
+def _attr(classes: list[str], styles: list[str]) -> str:
+    attr = ''
+    if classes:
+        attr += f' class="{" ".join(classes)}"'
+    if styles:
+        attr += f' style="{"; ".join(styles)}"'
+    return attr
+
+
+# 見出しIDの増分（aozora2html MidashiCounter: 大+100 中+10 小+1）
+_MIDASHI_INC = {2: 100, 3: 10, 4: 1}
+
+
+def to_html(doc: Document, compat: str | None = None) -> str:
+    """本文をHTML断片に（<ruby>タグ使用）。
+
+    compat=None    … 本ライブラリの意味構造HTML（見出しは h2/h3/h4）
+    compat='aozora'… 青空文庫公式流儀（aozora2html互換）。見出しは h3/h4/h5 で
+                     `<a class="midashi_anchor" id="midashiN">` を内包し、
+                     見出しIDは MidashiCounter（大+100/中+10/小+1）で採番。
+    """
+    aozora = compat == 'aozora'
+    out, counter = [], 0
     for p in doc.paragraphs:
         inner = ''.join(
             f'<ruby>{html.escape(t)}<rt>{html.escape(r)}</rt></ruby>'
@@ -69,16 +89,17 @@ def to_html(doc: Document) -> str:
                      f'alt="{html.escape(cap)}" />') + inner
         classes, styles = _layout_class_style(p)
         if p.heading_level:
-            tag = f'h{p.heading_level}'
             classes.insert(0, midashi_class(p.heading_level, p.heading_type))
+            if aozora:
+                counter += _MIDASHI_INC[p.heading_level]
+                tag = f'h{p.heading_level + 1}'   # 大→h3 中→h4 小→h5
+                inner = (f'<a class="midashi_anchor" '
+                         f'id="midashi{counter}">{inner}</a>')
+            else:
+                tag = f'h{p.heading_level}'        # 大→h2 中→h3 小→h4
         else:
             tag = 'p'
-        attr = ''
-        if classes:
-            attr += f' class="{" ".join(classes)}"'
-        if styles:
-            attr += f' style="{"; ".join(styles)}"'
-        out.append(f'<{tag}{attr}>{inner}</{tag}>')
+        out.append(f'<{tag}{_attr(classes, styles)}>{inner}</{tag}>')
     return '\n'.join(out)
 
 

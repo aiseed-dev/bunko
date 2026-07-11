@@ -97,9 +97,9 @@ class Document:
     paragraphs: list[Paragraph]
     colophon: str = ''   # 底本情報
 
-    def to_html(self) -> str:
+    def to_html(self, compat: str | None = None) -> str:
         from .formats import to_html
-        return to_html(self)
+        return to_html(self, compat=compat)
 
     def to_epub(self, path: str) -> str:
         from .formats import to_epub
