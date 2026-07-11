@@ -46,3 +46,12 @@ def test_font_mode_without_embed_uses_names():
     html = to_official_html(_DOC, gaiji='font')
     assert 'data:font/woff2' not in html
     assert '.gaiji { font-family: "IPAmjMincho"' in html
+
+
+def test_gaiji_charset():
+    # アプリ同梱用: Shift_JIS(0208)に無い“真の外字”の集合
+    cs = fonts.gaiji_charset()
+    assert len(cs) > 3000                     # 第3・第4水準など数千字
+    assert all(not fonts._sjis_ok(c) for c in cs)   # すべて0208に無い
+    # 0208込みの全外字はさらに多い
+    assert len(fonts.gaiji_charset(include_0208=True)) > len(cs)

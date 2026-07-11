@@ -69,3 +69,53 @@ def font_face_css(woff2: bytes, family: str = 'AozoraGaiji',
     return (f"@font-face {{ font-family: '{family}'; "
             f"src: url(data:font/woff2;base64,{b64}) format('woff2'); }}\r\n"
             f"\t.gaiji {{ font-family: '{family}', {fallback}; }}\r\n")
+
+
+def _sjis_ok(c: str) -> bool:
+    try:
+        c.encode('shift_jis')
+        return True
+    except Exception:
+        return False
+
+
+def gaiji_charset(include_0208: bool = False) -> set[str]:
+    """aozorabunko が解決しうる外字の文字集合（Unicode中間表現の全外字）。
+
+    include_0208=False（既定）は Shift_JIS(JIS X 0208)に無い“真の外字”（第3・第4水準等）
+    のみ。標準フォントが持たないこの集合を1フォントに収めれば、Flutter/Fletアプリは
+    実Unicodeテキストのまま全外字を表示できる（画像も注記も不要）。
+    """
+    from aozorabunko.gaiji import _table
+    chars: set[str] = set()
+    for v in _table().values():
+        chars.update(v)
+    if include_0208:
+        return chars
+    return {c for c in chars if not _sjis_ok(c)}
+
+
+def build_gaiji_font(source: str | None = None, out_path: str | None = None,
+                     include_0208: bool = False) -> bytes:
+    """青空文庫の全外字を収めたサブセットフォント(WOFF2)を作る。アプリ同梱用。"""
+    src = source or find_source_font()
+    if src is None:
+        raise RuntimeError("JIS X 0213対応の元フォントが見つかりません（source=で指定してください）")
+    woff2 = subset_woff2(src, gaiji_charset(include_0208))
+    if out_path:
+        with open(out_path, 'wb') as f:
+            f.write(woff2)
+    return woff2
+
+
+if __name__ == '__main__':   # python -m pyaozora.fonts <out.woff2> [--all] [--source PATH]
+    import argparse
+    ap = argparse.ArgumentParser(description='青空文庫の外字サブセットフォントを作る')
+    ap.add_argument('out', help='出力WOFF2パス')
+    ap.add_argument('--all', action='store_true',
+                    help='JIS X 0208を含む全外字（既定は0208に無い真の外字のみ）')
+    ap.add_argument('--source', help='元フォント(ttf/otf/ttc)。省略時は自動探索')
+    a = ap.parse_args()
+    data = build_gaiji_font(source=a.source, out_path=a.out, include_0208=a.all)
+    n = len(gaiji_charset(a.all))
+    print(f"wrote {a.out}: {len(data):,} bytes for {n} gaiji chars")
