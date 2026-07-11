@@ -1,0 +1,170 @@
+<title>山月記 ── Unicodeデータから描く青空文庫</title>
+<style>
+  :root{
+    --paper:#e7e2d4; --paper-hi:#eee9dc; --ink:#221f19; --ink-soft:#4a4437;
+    --shu:#a8392a;            /* 朱 ─ ただ一点の差し色 */
+    --muted:#8c846e; --rule:#d0c7b1; --card:#efeaddcc;
+  }
+  @font-face{ font-family:'AozoraGaiji';
+    src:url(data:font/woff2;base64,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) format('woff2'); font-display:swap; }
+
+  .stage{
+    --serif:"Hiragino Mincho ProN","YuMincho","Yu Mincho","Noto Serif CJK JP",
+            "Songti SC","SimSun",'AozoraGaiji',serif;
+    color:var(--ink); background:
+      radial-gradient(120% 80% at 30% 0%, var(--paper-hi), var(--paper) 60%);
+    font-family:var(--serif); line-height:1.65;
+    padding:clamp(20px,4vw,52px); border-radius:2px;
+  }
+  .stage *{ box-sizing:border-box; }
+
+  .eyebrow{ font-family:system-ui,sans-serif; font-size:.72rem; letter-spacing:.34em;
+    color:var(--shu); text-transform:uppercase; margin:0 0 .9rem; font-weight:600; }
+  .masthead{ display:flex; align-items:baseline; gap:1.1rem; flex-wrap:wrap;
+    border-bottom:1px solid var(--rule); padding-bottom:1.1rem; margin-bottom:1.1rem; }
+  .title{ font-size:clamp(1.9rem,4.4vw,3rem); font-weight:600; letter-spacing:.06em;
+    margin:0; text-wrap:balance; }
+  .byline{ font-size:1.05rem; color:var(--ink-soft); letter-spacing:.08em; }
+  .byline::before{ content:"著　"; color:var(--muted); font-size:.85em; }
+
+  .bar{ display:flex; align-items:center; gap:.8rem; flex-wrap:wrap;
+    margin-bottom:1.2rem; }
+  .seg{ display:inline-flex; border:1px solid var(--rule); border-radius:999px;
+    overflow:hidden; background:var(--paper-hi); }
+  .seg button{ font-family:var(--serif); font-size:.9rem; padding:.34rem 1.1rem;
+    border:0; background:transparent; color:var(--ink-soft); cursor:pointer;
+    letter-spacing:.12em; transition:background .18s,color .18s; }
+  .seg button[aria-pressed="true"]{ background:var(--shu); color:#f4efe2; }
+  .seg button:focus-visible{ outline:2px solid var(--shu); outline-offset:2px; }
+  .note{ font-family:system-ui,sans-serif; font-size:.82rem; color:var(--muted);
+    letter-spacing:.02em; }
+
+  /* 縦書きの読書面 */
+  .reader{ writing-mode:vertical-rl; text-orientation:mixed;
+    height:min(62vh,560px); overflow-x:auto; overflow-y:hidden; direction:ltr;
+    padding:1.6rem .4rem 1.6rem 1.2rem; border:1px solid var(--rule);
+    border-radius:2px; background:
+      repeating-linear-gradient(90deg,transparent 0 calc(2em - 1px),
+        #00000008 calc(2em - 1px) 2em);
+    font-size:clamp(1.02rem,1.05rem + .3vw,1.22rem); line-height:2.0;
+    letter-spacing:.02em; }
+  .reader p{ margin:0; text-indent:1em; }
+  .reader h3,.reader h4{ margin:0; font-weight:600; font-size:1.28em;
+    letter-spacing:.16em; color:var(--shu); }
+  .reader rt{ font-size:.42em; color:var(--muted); letter-spacing:0;
+    font-weight:400; }
+  .g{ font-family:'AozoraGaiji',var(--serif);
+    border-inline-end:2px solid #a8392a55; cursor:help; }
+
+  /* データ面 */
+  .data{ display:none; }
+  .data.on{ display:block; }
+  .reader.off{ display:none; }
+  pre{ margin:0; max-height:min(62vh,560px); overflow:auto; border-radius:2px;
+    background:#201d17; color:#e9e3d3; padding:1.1rem 1.2rem;
+    font:.82rem/1.7 ui-monospace,"SFMono-Regular",Menlo,monospace;
+    white-space:pre; tab-size:2; }
+  pre .k{ color:#d9a441; } pre .s{ color:#a9c07a; } pre .r{ color:#d98b6f; }
+
+  .colophon{ margin-top:1.3rem; padding-top:1.1rem; border-top:1px solid var(--rule);
+    font-size:.86rem; color:var(--muted); line-height:1.8; }
+  .thesis{ margin-top:1.4rem; font-size:.92rem; color:var(--ink-soft);
+    line-height:1.75; max-width:60ch; }
+  .thesis b{ color:var(--shu); font-weight:600; }
+  .count{ font-variant-numeric:tabular-nums; }
+
+  @media (prefers-reduced-motion:no-preference){
+    .fade{ animation:rise .6s ease both; } @keyframes rise{
+      from{opacity:0; transform:translateY(6px);} to{opacity:1;transform:none;} } }
+</style>
+
+<div class="stage fade">
+  <p class="eyebrow">青空文庫 ／ rendered from Unicode data</p>
+  <div class="masthead">
+    <h1 class="title" id="ttl"></h1>
+    <span class="byline" id="by"></span>
+  </div>
+
+  <div class="bar">
+    <div class="seg" role="group" aria-label="表示切替">
+      <button id="b-text" aria-pressed="true">本文</button>
+      <button id="b-data" aria-pressed="false">データ（JSON）</button>
+    </div>
+    <span class="note">外字 <b id="gcount" class="count"></b> 字は実Unicode文字（画像なし・ホバーで符号点）</span>
+  </div>
+
+  <div class="reader" id="reader"></div>
+  <div class="data" id="data"><pre id="json"></pre></div>
+
+  <div class="colophon" id="colophon"></div>
+  <p class="thesis">この1ページは、<b>1つの汎用ビューア</b>が作品の <b>Document JSON</b>
+    （外字・アクセント解決済みの構造化Unicodeデータ）を描いたもの。ルビは読みデータ、
+    外字は実文字。器としてのXHTMLは要らず、同じデータから Flutter でも EPUB でも起こせる。</p>
+</div>
+
+<script type="application/json" id="doc">{"title": "山月記", "author": "中島敦", "colophon": "底本：「文學界」\n　　　1942（昭和17）年2月\n※「山月記」は『文學界』に「文字禍」と共に「古譚」の題で掲載されました。\n※このファイルは、日本文学等テキストファイル（http://www.let.osaka-u.ac.jp/~okajima/bungaku.htm）で公開されたものを、青空文庫形式にあらためて作成しました。\n※「己《をれ》」と「己《おれ》」、「己《をのれ》」と「己《おのれ》」の混在は底本通りにしました。\n入力：岡島昭浩\n校正：小林繁雄\n2005年04月22日作成\n青空文庫作成ファイル：\nこのファイルは、インターネットの図書館、青空文庫（http://www.aozora.gr.jp/）で作られました。入力、校正、制作にあたったのは、ボランティアの皆さんです。", "paragraphs": [{"seg": [{"t": "　"}, {"t": "隴", "r": "ろう"}, {"t": "西の李徴は博學"}, {"t": "才穎", "r": "さいえい"}, {"t": "、天寶の末年、若くして名を"}, {"t": "虎榜", "r": "こぼう"}, {"t": "に連ね、ついで江南尉に補せられたが、性、狷介、自ら恃む所頗る厚く、賤吏に甘んずるを潔しとしなかつた。いくばくもなく官を退いた後は、故山、"}, {"t": "虢", "r": "くわく"}, {"t": "略に歸臥し、人と交を絶つて、ひたすら詩作に耽つた。下吏となつて長く膝を俗惡な大官の前に屈するよりは、詩家としての名を死後百年に遺さうとしたのである。しかし、文名は容易に揚らず、生活は日を逐うて苦しくなる。李徴は漸く焦躁に驅られて來た。この頃から其の容貌も峭刻となり、肉落ち骨秀で、眼光のみ徒らに烱々として、曾て進士に登第した頃の豐頬の美少年の俤は、何處に求めやうもない。數年の後、貧窮に堪へず、妻子の衣食のために遂に節を屈して、再び東へ赴き、一地方官吏の職を奉ずることになつた。一方、之は、"}, {"t": "己", "r": "をのれ"}, {"t": "の詩業に半ば絶望したためでもある。曾ての同輩は既に遙か高位に進み、彼が昔、鈍物として齒牙にもかけなかつた其の連中の下命を拜さねばならぬことが、往年の秀才李徴の自尊心を如何に傷つけたかは、想像に難くない。彼は怏々として樂しまず、狂"}, {"t": "悖", "r": "はい"}, {"t": "の性は愈〻抑へ難くなつた。一年の後、公用で旅に出、"}, {"t": "汝水", "r": "ぢよすゐ"}, {"t": "のほとりに宿つた時、遂に發狂した。或夜半、急に顏色を變へて寢床から起上ると、何か譯の分らぬことを叫びつつ其の儘下にとび下りて、闇の中へ駈出した。彼は二度と戻つて來なかつた。附近の山野を搜索しても、何の手掛りもない。その後李徴がどうなつたかを知る者は、誰もなかつた。"}]}, {"seg": [{"t": "　翌年、監察御史、陳郡の"}, {"t": "袁傪", "r": "えんさん"}, {"t": "といふ者、勅命を奉じて嶺南に使し、途に"}, {"t": "商於", "r": "しやうを"}, {"t": "の地に宿つた。次の朝未だ暗い中に出發しようとした所、驛吏が言ふことに、これから先の道に人喰虎が出る故、旅人は白晝でなければ、通れない。今はまだ朝が早いから、今少し待たれたが宜しいでせうと。袁傪は、しかし、供廻りの多勢なのを恃み、驛吏の言葉を斥けて、出發した。殘月の光をたよりに林中の草地を通つて行つた時、果して一匹の猛虎が叢の中から躍り出た。虎は、あはや袁傪に躍りかかるかと見えたが、忽ち身を飜して、元の叢に隱れた。叢の中から人間の聲で「あぶない所だつた」と繰返し呟くのが聞えた。其の聲に袁傪は聞き憶えがあつた。驚懼の中にも、彼は咄嗟に思ひあたつて、叫んだ。「其の聲は、我が友、李徴子ではないか？」袁傪は李徴と同年に進士の第に登り、友人の少かつた李徴にとつては、最も親しい友であつた。温和な袁傪の性格が、峻峭な李徴の性情と衝突しなかつたためであらう。"}]}, {"seg": [{"t": "　叢の中からは、暫く返辭が無かつた。しのび泣きかと思はれる微かな聲が時々洩れるばかりである。ややあつて、低い聲が答へた。「如何にも自分は隴西の李徴である」と。"}]}, {"seg": [{"t": "　袁傪は恐怖を忘れ、馬から下りて叢に近づき、懷かしげに久濶を叙した。そして、何故叢から出て來ないのかと問うた。李徴の聲が答へて言ふ。自分は今や異類の身となつてゐる。どうして、おめ／＼と故人の前にあさましい姿をさらせようか。且つ又、自分が姿を現せば、必ず君に畏怖嫌厭の情を起させるに決つてゐるからだ。しかし、今、圖らずも故人に遇ふことを得て、"}, {"t": "愧赧", "r": "きたん"}, {"t": "の念をも忘れる程に懷かしい。どうか、ほんの暫くでいいから、我が醜惡な今の外形を厭はず、曾て君の友李徴であつた此の自分と話を交して呉れないだらうか。"}]}, {"seg": [{"t": "　"}, {"t": "後", "r": "あと"}, {"t": "で考へれば不思議だつたが、其の時、袁傪は、この超自然の怪異を、實に素直に受容れて、少しも怪まうとしなかつた。彼は部下に命じて行列の進行を停め、自分は叢の傍に立つて、見えざる聲と對談した。都の噂、舊友の消息、袁傪が現在の地位、それに對する李徴の祝辭。青年時代に親しかつた者同志の、あの隔てのない語調で、それ等が語られた後、袁傪は、李徴がどうして今の身となるに至つたかを訊ねた。草中の聲は次のやうに語つた。"}]}, {"seg": [{"t": "　今から一年程前、自分が旅に出て汝水のほとりに泊つた夜のこと、一睡してから、ふと眼を覺ますと、戸外で誰かが我が名を呼んでゐる。聲に應じて外へ出て見ると、聲は闇の中から頻りに自分を招く。覺えず、自分は聲を追うて走り出した。無我夢中で駈けて行く中に、何時しか途は山林に入り、しかも、知らぬ間に自分は左右の手で地を"}, {"t": "攫", "r": "つか"}, {"t": "んで走つてゐた。何か身體中に力が充ち滿ちたやうな感じで、輕々と岩石を"}, {"t": "跳", "r": "と"}, {"t": "び越えて行つた。氣が付くと、手先や肱のあたりに毛を生じてゐるらしい。少し明るくなつてから、谷川に臨んで姿を映して見ると、既に虎となつてゐた。自分は初め眼を信じなかつた。次に、之は夢に違ひないと考へた。夢の中で、之は夢だぞと知つてゐるやうな夢を、自分はそれ迄に見たことがあつたから。どうしても夢でないと悟らねばならなかつた時、自分は茫然とした。さうして、懼れた。全く、どんな事でも起り得るのだと思うて、深く懼れた。しかし、何故こんな事になつたのだらう。分らぬ。全く何事も我々には判らぬ。理由も分らずに押付けられたものを大人しく受取つて、理由も分らずに生きて行くのが、我々生きもののさだめだ。自分は直ぐに死を想うた。しかし、其の時、眼の前を一匹の兎が駈け過ぎるのを見た途端に、自分の中の人間は忽ち姿を消した。再び自分の中の人間が目を覺ました時、自分の口は兎の血に"}, {"t": "塗", "r": "まみ"}, {"t": "れ、あたりには兎の毛が散らばつてゐた。之が虎としての最初の經驗であつた。それ以來今迄にどんな所行をし續けて來たか、それは到底語るに忍びない。ただ、一日の中に必ず數時間は、人間の心が還つて來る。さういふ時には、曾ての日と同じく、人語も操れれば、複雜な思考にも堪へ得るし、經書の章句をも誦ずることも出來る。その人間の心で、虎としての己の殘虐な行のあとを見、己の運命をふりかへる時が、最も情なく、恐しく、"}, {"t": "憤", "r": "いきどほ"}, {"t": "ろしい。しかし、その、人間にかへる數時間も、日を經るに從つて次第に短くなつて行く。今迄は、どうして虎などになつたかと怪しんでゐたのに、此の間ひよいと氣が付いて見たら、"}, {"t": "己", "r": "おれ"}, {"t": "はどうして以前、人間だつたのかと考へてゐた。之は恐しいことだ。今少し"}, {"t": "經", "r": "た"}, {"t": "てば、"}, {"t": "己", "r": "おれ"}, {"t": "の中の人間の心は、獸としての習慣の中にすつかり"}, {"t": "埋", "r": "うも"}, {"t": "れて消えて了ふだらう。恰度、古い宮殿の礎が次第に土砂に埋沒するやうに。さうすれば、しまひに己は自分の過去を忘れ果て、一匹の虎として狂ひ廻り、今日の樣に途で君と出會つても"}, {"t": "故人", "r": "とも"}, {"t": "と認めることなく、君を裂き"}, {"t": "喰", "r": "くら"}, {"t": "うて何の悔も感じないだらう。一體、獸でも人間でも、もとは何か他のものだつたんだらう。初めはそれを憶えてゐたが、次第に忘れて了ひ、初めから今の形のものだつたと思ひ込んでゐるのではないか？　いや、そんな事はどうでもいい。己の中の人間の心がすつかり消えて了へば、恐らく、その方が、己はしあはせになれるだらう。だのに、己の中の人間は、その事を、此の上なく恐しく感じてゐるのだ。ああ、全く、どんなに、恐しく、哀しく、切なく思つてゐるだらう！　己が人間だつた記憶のなくなることを。この氣持は誰にも分らない。誰にも分らない。己と同じ身の上に成つた者でなければ。所で、さうだ。己がすつかり人間でなくなつて了ふ前に、一つ頼んで置き度いことがある。"}], "deco": [{"t": "さだめ", "cls": "sesame_dot", "tag": "em"}, {"t": "人間", "cls": "sesame_dot", "tag": "em"}, {"t": "人間", "cls": "sesame_dot", "tag": "em"}, {"t": "しあはせ", "cls": "sesame_dot", "tag": "em"}]}, {"seg": [{"t": "　袁傪はじめ一行は、息をのんで、叢中の聲の語る不思議に聞入つてゐた。聲は續けて言ふ。"}]}, {"seg": [{"t": "　他でもない。自分は元來詩人として名を成す積りでゐた。しかも、業未だ成らざるに、この運命に立至つた。曾て作る所の詩數百篇、固より、まだ世に行はれてをらぬ。遺稿の所在も最早判らなくなつてゐよう。所で、その中、今も尚記誦せるものが數十ある。之を我が爲に傳録して戴き度いのだ。何も、之に仍つて一人前の詩人"}, {"t": "面", "r": "づら"}, {"t": "をしたいのではない。作の巧拙は知らず、とにかく、産を破り心を狂はせて迄自分が生涯それに執著した所のものを、一部なりとも後代に傳へないでは、死んでも死に切れないのだ。"}]}, {"seg": [{"t": "　袁傪は部下に命じ、筆を執つて叢中の聲に隨つて書きとらせた。李徴の聲は叢の中から朗々と響いた。長短凡そ三十篇、格調高雅、意趣卓逸、一讀して作者の才の非凡を思はせるものばかりである。しかし、袁傪は感嘆しながらも漠然と次の樣に感じてゐた。成程、作者の素質が第一流に屬するものであることは疑ひない。しかし、この儘では、第一流の作品となるのには、何處か（非常に微妙な點に於て）缺ける所があるのではないか、と。"}]}, {"seg": [{"t": "　舊詩を吐き終つた李徴の聲は、突然調子を變へ、自らを嘲るが如くに言つた。"}]}, {"seg": [{"t": "　"}, {"t": "羞", "r": "はづか"}, {"t": "しいことだが、今でも、こんなあさましい身と成り果てた今でも、己は、己の詩集が長安風流人士の机の上に置かれてゐる"}, {"t": "樣", "r": "さま"}, {"t": "を、夢に見ることがあるのだ。岩窟の中に横たはつて見る夢にだよ。"}, {"t": "嗤", "r": "わら"}, {"t": "つて呉れ。詩人に成りそこなつて虎になつた哀れな男を。（袁傪は昔の青年李徴の自嘲癖を思出しながら、哀しく聞いてゐた。）さうだ。お笑ひ草ついでに、今の"}, {"t": "懷", "r": "おもひ"}, {"t": "を即席の詩に述べて見ようか。この虎の中に、まだ、曾ての李徴が生きてゐるしるしに。"}], "deco": [{"t": "あさましい", "cls": "sesame_dot", "tag": "em"}, {"t": "しるし", "cls": "sesame_dot", "tag": "em"}]}, {"seg": [{"t": "　袁傪は又下吏に命じて之を書きとらせた。その詩に言ふ。"}]}, {"seg": [{"t": "偶因狂疾成殊類　　災患相仍不可逃"}], "indent": 2}, {"seg": [{"t": "今日爪牙誰敢敵　　當時聲跡共相高"}], "indent": 2}, {"seg": [{"t": "我爲異物蓬茅下　　君已乘軺氣勢豪"}], "indent": 2}, {"seg": [{"t": "此夕溪山對明月　　不成長嘯但成嘷"}], "indent": 2}, {"seg": [{"t": "　時に、殘月、光冷やかに、白露は地に滋く、樹間を渡る冷風は既に曉の近きを告げてゐた。人々は最早、事の奇異を忘れ、肅然として、この詩人の薄倖を嘆じた。李徴の聲は再び續ける。"}]}, {"seg": [{"t": "　何故こんな運命になつたか判らぬと、先刻は言つたが、しかし、考へやうに依れば、思ひ當ることが全然ないでもない。人間であつた時、己は努めて人との交を避けた。人々は己を倨傲だ、尊大だといつた。實は、それが殆ど羞恥心に近いものであることを、人々は知らなかつた。勿論、曾ての郷黨の秀才だつた自分に、自尊心が無かつたとは云はない。しかし、それは臆病な自尊心とでもいふべきものであつた。"}, {"t": "己", "r": "をれ"}, {"t": "は詩によつて名を成さうと思ひながら、進んで師に就いたり、求めて詩友と交つて切磋琢磨に努めたりすることをしなかつた。かといつて、又、己は俗物の間に伍することも潔しとしなかつた。共に、我が臆病な自尊心と、尊大な羞恥心との所爲である。"}, {"t": "己", "r": "をのれ"}, {"t": "の珠に非ざることを惧れるが故に、敢て刻苦して磨かうともせず、又、"}, {"t": "己", "r": "おのれ"}, {"t": "の珠なるべきを半ば信ずるが故に、碌々として瓦に伍することも出來なかつた。"}, {"t": "己", "r": "おれ"}, {"t": "は次第に世と離れ、人と遠ざかり、憤悶と"}, {"t": "慙恚", "r": "ざんい"}, {"t": "とによつて益〻己の内なる臆病な自尊心を飼ひふとらせる結果になつた。人間は誰でも猛獸使であり、その猛獸に當るのが、各人の性情だといふ。"}, {"t": "己", "r": "おれ"}, {"t": "の場合、この尊大な羞恥心が猛獸だつた。虎だつたのだ。之が己を損ひ、妻子を苦しめ、友人を傷つけ、果ては、己の外形を斯くの如く、内心にふさはしいものに變へて了つたのだ。今思へば、全く、"}, {"t": "己", "r": "おれ"}, {"t": "は、己の"}, {"t": "有", "r": "も"}, {"t": "つてゐた僅かばかりの才能を空費して了つた譯だ。人生は何事をも爲さぬには餘りに長いが、何事かを爲すには餘りに短いなどと口先ばかりの警句を弄しながら、事實は、才能の不足を暴露するかも知れないとの卑怯な危惧と、刻苦を厭ふ怠惰とが己の凡てだつたのだ。己よりも遙かに乏しい才能でありながら、それを專一に磨いたがために、堂々たる詩家となつた者が幾らでもゐるのだ。虎と成り果てた今、己は漸くそれに氣が付いた。それを思ふと、己は今も胸を灼かれるやうな悔を感じる、己には最早人間としての生活は出來ない。たとへ、今、己が頭の中で、どんな優れた詩を作つたにした所で、どういふ手段で發表できよう。まして、"}, {"t": "己", "r": "おれ"}, {"t": "の頭は日毎に虎に近づいて行く。どうすればいいのだ。己の空費された過去は？　己は堪らなくなる。さういふ時、己は、向うの山の頂の巖に上り、空谷に向つて吼える。この胸を灼く悲しみを誰かに訴へたいのだ。己は昨夕も、彼處で月に向つて咆えた。誰かに此の苦しみが分つて貰へないかと。しかし、獸どもは己の聲を聞いて、唯、懼れ、ひれ伏すばかり。山も樹も月も露も、一匹の虎が怒り狂つて、"}, {"t": "哮", "r": "たけ"}, {"t": "つてゐるとしか考へない。天に躍り地に伏して嘆いても、誰一人己の氣持を分つて呉れる者はない。恰度、人間だつた頃、己の傷つき易い内心を誰も理解して呉れなかつたやうに。己の毛皮の濡れたのは、夜露のためばかりではない。"}], "deco": [{"t": "ふとらせる", "cls": "sesame_dot", "tag": "em"}]}, {"seg": [{"t": "　漸く"}, {"t": "四邊", "r": "あたり"}, {"t": "の暗さが薄らいで來た。木の間を傳つて、何處からか、曉角が哀しげに響き始めた。"}]}, {"seg": [{"t": "　最早、別れを告げねばならぬ。醉はねばならぬ時が、（虎に還らねばならぬ時が）近づいたから、と、李徴の聲が言つた。だが、お別れする前にもう一つ頼みがある。それは我が妻子のことだ。彼等は未だ"}, {"t": "虢", "r": "くわく"}, {"t": "略にゐる。固より、己の運命に就いては知る筈がない。君が南から歸つたら、己は既に死んだと彼等に告げて貰へないだらうか。決して今日のことだけは明かさないで欲しい。厚かましいお願だが、彼等の孤弱を憐れんで、今後とも"}, {"t": "道塗", "r": "だうと"}, {"t": "に"}, {"t": "飢凍", "r": "きとう"}, {"t": "することのないやうにはからつて戴けるならば、自分にとつて、恩"}, {"t": "倖", "r": "かう"}, {"t": "、之に過ぎたるは"}, {"t": "莫", "r": "な"}, {"t": "い。"}]}, {"seg": [{"t": "　言終つて、叢中から慟哭の聲が聞えた。袁も亦涙を泛べ、欣んで李徴の意に副ひ度い旨を答へた。李徴の聲は併し忽ち又先刻の自嘲的な調子に戻つて、言つた。"}]}, {"seg": [{"t": "　本當は、先づ、この事の方を先にお願ひすべきだつたのだ、己が人間だつたなら。飢ゑ凍えようとする妻子のことよりも、"}, {"t": "己", "r": "おのれ"}, {"t": "の乏しい詩業の方を氣にかけてゐる樣な男だから、こんな獸に身を"}, {"t": "墮", "r": "おと"}, {"t": "すのだ。"}]}, {"seg": [{"t": "　さうして、附加へて言ふことに、袁傪が嶺南からの歸途には決して此の"}, {"t": "途", "r": "みち"}, {"t": "を通らないで欲しい、其の時には自分が醉つてゐて故人を認めずに襲ひかかるかも知れないから。又、今別れてから、前方百歩の所にある、あの丘に上つたら、此方を振りかへつて見て貰ひ度い。自分は今の姿をもう一度お目に掛けよう。勇に誇らうとしてではない。我が醜惡な姿を示して、以て、再び此處を過ぎて自分に會はうとの氣持を君に起させない爲であると。"}]}, {"seg": [{"t": "　袁傪は叢に向つて、懇ろに別れの言葉を述べ、馬に上つた。叢の中からは、又、堪へ得ざるが如き悲泣の聲が洩れた。袁傪も幾度か叢を振返りながら、涙の中に出發した。"}]}, {"seg": [{"t": "　一行が丘の上についた時、彼等は、言はれた通りに振返つて、先程の林間の草地を眺めた。忽ち、一匹の虎が草の茂みから道の上に躍り出たのを彼等は見た。虎は、既に白く光を失つた月を仰いで、二聲三聲咆哮したかと思ふと、又、元の叢に躍り入つて、再び其の姿を見なかつた。"}]}], "work_id": "000623"}</script>
+<script>
+(function(){
+  const DOC = JSON.parse(document.getElementById('doc').textContent);
+  const GAIJI = {"〻": "U+303B", "傪": "U+50AA", "嘷": "U+5637", "虢": "U+8662", "軺": "U+8EFA"};
+  document.getElementById('ttl').textContent = DOC.title;
+  document.getElementById('by').textContent = DOC.author;
+
+  // 外字を <span class="g" title="U+XXXX"> で包む（実Unicode文字であることを示す）
+  function appendText(el, t){
+    let buf='';
+    const flush=()=>{ if(buf){ el.appendChild(document.createTextNode(buf)); buf=''; } };
+    for(const ch of t){
+      if(GAIJI[ch]){ flush();
+        const s=document.createElement('span'); s.className='g';
+        s.textContent=ch; s.title='外字 '+GAIJI[ch]; el.appendChild(s);
+      } else buf+=ch;
+    }
+    flush();
+  }
+  const reader=document.getElementById('reader');
+  let gcount=0;
+  for(const p of DOC.paragraphs){
+    const tag = p.h ? ('h'+Math.min(4,p.h)) : 'p';
+    const el=document.createElement(tag);
+    if(p.indent) el.style.marginTop=(p.indent)+'em';   // 縦書きでは字下げ＝上マージン
+    for(const s of p.seg){
+      if(s.r){ const ruby=document.createElement('ruby');
+        appendText(ruby, s.t);
+        const rt=document.createElement('rt'); rt.textContent=s.r; ruby.appendChild(rt);
+        el.appendChild(ruby);
+      } else appendText(el, s.t);
+    }
+    reader.appendChild(el);
+  }
+  // 縦書きは右端が冒頭 ─ 右にスクロール
+  reader.scrollLeft = reader.scrollWidth;
+
+  // 外字の総出現数
+  const gtotal = DOC.paragraphs.reduce((n,p)=>n+p.seg.reduce((m,s)=>
+    m+[...s.t].filter(c=>GAIJI[c]).length,0),0);
+  document.getElementById('gcount').textContent = gtotal;
+
+  // 底本
+  if(DOC.colophon){ document.getElementById('colophon').textContent =
+    DOC.colophon.split('\n').filter(x=>x.trim())[0] || ''; }
+
+  // データ面：段落の一部を色付きJSONで
+  const sample = { title:DOC.title, author:DOC.author,
+    paragraphs: DOC.paragraphs.slice(0,3) };
+  let js = JSON.stringify(sample,null,2);
+  js = js.replace(/&/g,'&amp;').replace(/</g,'&lt;')
+         .replace(/"(t|r|title|author|seg|paragraphs|h|indent)":/g,'<span class="k">"$1"</span>:')
+         .replace(/: "([^"]*)"/g,': <span class="s">"$1"</span>');
+  document.getElementById('json').innerHTML = js + '\n  … (全'+DOC.paragraphs.length+'段落)';
+
+  // トグル
+  const bt=document.getElementById('b-text'), bd=document.getElementById('b-data');
+  const data=document.getElementById('data');
+  function show(text){
+    bt.setAttribute('aria-pressed',text); bd.setAttribute('aria-pressed',!text);
+    reader.classList.toggle('off',!text); data.classList.toggle('on',!text);
+  }
+  bt.onclick=()=>show(true); bd.onclick=()=>show(false);
+})();
+</script>
