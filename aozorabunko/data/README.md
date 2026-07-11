@@ -12,3 +12,12 @@ JIS X 0213:2004 の面区点（men-ku-ten）→ Unicode 対応表（11,233件）
 
 対応表そのものは aozora2html が JIS X 0213:2004 の公式マッピング
 （`vendor/jis2ucs/jisx0213-2004-mono.html`）から生成したもの。敬意をもって流用する。
+
+## accent_table.json
+
+欧文アクセント分解（`〔e'tiquette〕`）の対応表。base文字 → 修飾記号 →
+`[面区点code, 名称]` の2〜3段ネスト。面区点は jis2ucs.json 経由で実文字に解決する。
+
+- **出典**: aozora2html の `yml/accent_table.yml`（CC0-1.0）
+- **生成**: `tools/build_gaiji_table.py` が YAML をそのまま JSON 化（ビルド時のみ pyyaml 使用）。
+

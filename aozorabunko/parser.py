@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from . import decorate, gaiji
+from . import accent, decorate, gaiji
 
 # ルビ: ｜複合語《よみ》 または 漢字連続《よみ》
 RUBY_RE = re.compile(
@@ -122,7 +122,8 @@ def parse(text: str) -> Document:
     for raw in body.split('\n'):
         if not raw.strip():
             continue
-        line = gaiji.resolve(raw)  # 外字を実文字へ（未対応注記の除去より前）
+        line = gaiji.resolve(raw)   # 外字を実文字へ（未対応注記の除去より前）
+        line = accent.resolve(line)  # 欧文アクセント分解 〔e'〕→é
 
         # 複数行見出しブロックの継続中
         if pending is not None:
