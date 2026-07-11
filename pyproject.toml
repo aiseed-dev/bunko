@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyaozora"
+version = "0.1.0"
+description = "青空文庫の注記付きテキストを、公式サイトと同じXHTMLに変換する（基本データとPythonだけで作る）"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+keywords = ["aozora", "aozorabunko", "japanese", "xhtml", "converter"]
+dependencies = ["aozorabunko"]
+
+[tool.setuptools]
+packages = ["pyaozora"]
