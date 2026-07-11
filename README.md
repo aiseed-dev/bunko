@@ -25,10 +25,12 @@
 ## 使い方
 
 ```bash
-pip install flet ebooklib
+pip install "aozorabunko[epub]" flet
 flet run aozora_shinkan.py          # リーダー（検索→閲覧）
 python aozora2epub.py <zipのURL>    # EPUB変換（Send to Kindle等へ）
 ```
+
+検索・取得・パース・変換は [`aozorabunko`](https://github.com/aiseed-dev/aozorabunko) ライブラリに委譲しています。このリポジトリは**ライブラリの最初の利用例**です（外字・アクセントも解決されて表示されます）。
 
 読み上げ（任意）:
 
@@ -42,9 +44,9 @@ python aozora_tts.py                # 変換デモ
 
 | ファイル | 役割 |
 |---|---|
-| `aozora_shinkan.py` | リーダー本体（カタログ検索・ルビ表示・キャッシュ） |
-| `aozora2epub.py` | 注記付きテキスト → EPUB3 変換 |
-| `aozora_tts.py` | 読み上げテキスト生成・TTSエンジン接続 |
+| `aozora_shinkan.py` | リーダー本体（UIのみ。検索・パースは `aozorabunko` に委譲） |
+| `aozora2epub.py` | 注記付きテキスト → EPUB3 変換（`aozorabunko.parse` + `to_epub`） |
+| `aozora_tts.py` | 読み上げテキスト生成・TTSエンジン接続（ルビ＝読みデータ） |
 
 技術メモ:
 

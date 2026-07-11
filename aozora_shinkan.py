@@ -13,121 +13,41 @@ aozora_shinkan.py — 青空文庫リーダー「もうひとつの新館」
 
 静的なテキストの正本さえ生きていれば、検索も、ルビ付き表示も、
 文字サイズ調整も、すべて読者の手元で実現できる──それだけを示すアプリです。
+
+検索・取得・パースは `aozorabunko` ライブラリに委譲しています
+（このアプリはライブラリの利用例。外字・アクセントも解決されて表示されます）。
 """
 from __future__ import annotations
-import csv
-import io
-import re
-import zipfile
-import urllib.request
-from dataclasses import dataclass
-from pathlib import Path
 
 import flet as ft
 
-# ================= データ層（依存はGitHubミラーの静的ファイルのみ） =================
+from aozorabunko import Library, Work, parse
 
-MIRROR = 'https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/'
-CATALOG_URL = MIRROR + 'index_pages/list_person_all_extended_utf8.zip'
-CACHE_DIR = Path('aozora_cache')
-CACHE_DIR.mkdir(exist_ok=True)
-
-AOZORA_URL_RE = re.compile(r'https?://www\.aozora\.gr\.jp/(cards/.+)')
-RUBY_RE = re.compile(
-    r'(?:｜(?P<base1>[^《｜]+)'
-    r'|(?P<base2>[\u4E00-\u9FFF\u3005-\u3007\uF900-\uFAFF々〆ヵヶ]+))'
-    r'《(?P<ruby>[^》]+)》')
-NOTE_RE = re.compile(r'［＃[^］]*］')
+# ================= データ層（aozorabunko に委譲・自前ロジックを持たない） =================
+# 依存はGitHubミラーの静的ファイルのみ。キャッシュはローカルの
+# aozora_cache/（同梱デモzip込み）に置き、二度目からオフラインで動く。
 
 Segment = tuple[str, str | None]
 
-
-@dataclass
-class Work:
-    title: str
-    title_yomi: str
-    author: str
-    author_yomi: str
-    text_url: str
-
-    @property
-    def github_url(self) -> str:
-        m = AOZORA_URL_RE.match(self.text_url)
-        return MIRROR + m.group(1) if m else self.text_url
-
-    @property
-    def cache_path(self) -> Path:
-        return CACHE_DIR / self.github_url.rsplit('/', 1)[-1]
-
-
-def fetch(url: str, cache: Path) -> bytes:
-    """キャッシュ優先で取得。二度目からはオフラインで動く"""
-    if cache.exists():
-        return cache.read_bytes()
-    data = urllib.request.urlopen(url).read()
-    cache.write_bytes(data)
-    return data
+_LIB = Library(cache_dir='aozora_cache')
 
 
 def load_catalog() -> list[Work]:
-    raw = fetch(CATALOG_URL, CACHE_DIR / 'catalog.zip')
-    with zipfile.ZipFile(io.BytesIO(raw)) as zf:
-        text = zf.read(zf.namelist()[0]).decode('utf-8-sig')
-    works = []
-    for row in csv.DictReader(io.StringIO(text)):
-        if (row['役割フラグ'] == '著者' and row['テキストファイルURL']
-                and row['作品著作権フラグ'] == 'なし'
-                and row['人物著作権フラグ'] == 'なし'):
-            works.append(Work(
-                title=row['作品名'], title_yomi=row['作品名読み'],
-                author=f"{row['姓']}{row['名']}",
-                author_yomi=f"{row['姓読み']}{row['名読み']}",
-                text_url=row['テキストファイルURL']))
-    return works
+    """パブリックドメイン全作品（カタログはミラーのCSV一枚・以後キャッシュ）。"""
+    return _LIB.works
 
 
-def search(works: list[Work], q: str, limit=30) -> list[Work]:
-    q = q.strip()
-    if not q:
-        return []
-    hits = [w for w in works if q in w.title or q in w.title_yomi
-            or q in w.author or q in w.author_yomi]
-    hits.sort(key=lambda w: (w.title != q, not w.title.startswith(q),
-                             w.author != q, w.title_yomi))
-    return hits[:limit]
+def search(works: list[Work], q: str, limit: int = 30) -> list[Work]:
+    return _LIB.search(q, limit=limit)
 
 
 def load_work_text(work: Work) -> str:
-    data = fetch(work.github_url, work.cache_path)
-    if data[:2] == b'PK':
-        with zipfile.ZipFile(io.BytesIO(data)) as zf:
-            name = next(n for n in zf.namelist() if n.endswith('.txt'))
-            data = zf.read(name)
-    return data.decode('shift_jis', errors='replace')
+    return work.text()
 
 
 def parse_paragraphs(text: str) -> list[list[Segment]]:
-    text = text.replace('\r\n', '\n')
-    body = '\n'.join(text.split('\n')[2:])
-    body = re.sub(r'-{10,}\n【テキスト中に現れる記号について】.*?-{10,}\n',
-                  '', body, flags=re.S)
-    body = re.split(r'\n底本[：:]', body)[0]
-    body = NOTE_RE.sub('', body)
-
-    paragraphs = []
-    for line in body.split('\n'):
-        if not line.strip():
-            continue
-        segs, pos = [], 0
-        for m in RUBY_RE.finditer(line):
-            if m.start() > pos:
-                segs.append((line[pos:m.start()], None))
-            segs.append((m.group('base1') or m.group('base2'), m.group('ruby')))
-            pos = m.end()
-        if pos < len(line):
-            segs.append((line[pos:], None))
-        paragraphs.append(segs)
-    return paragraphs
+    """注記付きテキスト → 段落ごとのセグメント列（ライブラリのパーサに委譲）。"""
+    return [p.segments for p in parse(text).paragraphs]
 
 
 # ================= 表示層（小さな自己完結型コンポーネント） =================
@@ -221,8 +141,7 @@ def main(page: ft.Page):
 
     page.add(status, search_view, reader_view)
 
-    nonlocal_works = load_catalog()
-    works.extend(nonlocal_works)
+    works.extend(load_catalog())
     status.value = (f'パブリックドメイン {len(works):,} 作品 ── '
                     'このアプリはGitHubミラーの静的ファイルだけで動いています')
     page.update()
