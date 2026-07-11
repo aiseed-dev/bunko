@@ -62,6 +62,11 @@ def to_html(doc: Document) -> str:
                 esc = html.escape(t)
                 inner = inner.replace(
                     esc, f'<{tag} class="{cls}">{esc}</{tag}>', 1)
+        if p.image:
+            src, w, h, cap = p.image
+            dim = (f' width="{w}"' if w else '') + (f' height="{h}"' if h else '')
+            inner = (f'<img class="illustration" src="{html.escape(src)}"{dim} '
+                     f'alt="{html.escape(cap)}" />') + inner
         classes, styles = _layout_class_style(p)
         if p.heading_level:
             tag = f'h{p.heading_level}'

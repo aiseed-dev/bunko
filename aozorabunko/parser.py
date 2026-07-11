@@ -20,6 +20,10 @@ _DECO_KW = '|'.join(decorate.KEYWORDS)
 DECORATE_RE = re.compile(
     r'(?P<t>.+?)［＃「(?P=t)」(?:の(?P<dir>右|左|上|下)に|に|は)'
     rf'(?P<kind>{_DECO_KW})］')
+# 挿絵: ［＃<説明>（fig…\.png、横W×縦H）入る］
+IMG_RE = re.compile(
+    r'［＃(?P<cap>[^（］]*)（(?P<file>fig[^、）]+\.png)'
+    r'(?:、横(?P<w>\d+)×縦(?P<h>\d+))?）入る］')
 NOTE_RE = re.compile(r'［＃[^］]*］')
 
 # 見出し ── 大=2/中=3/小=4（heading_level）、種別 normal/dogyo(同行)/mado(窓)。
@@ -66,6 +70,7 @@ class Paragraph:
     align: str | None = None    # None | 'right'（地付き・字上げ）
     align_offset: int = 0       # 字上げの N（地からN字上げ, 右マージンem）
     jizume: int = 0             # 字詰め幅（em, width）
+    image: tuple | None = None  # 挿絵 (src, width, height, caption)
 
     @property
     def plain(self) -> str:
@@ -105,8 +110,12 @@ class Document:
         return to_speech_text(self)
 
 
-def parse(text: str) -> Document:
-    """注記付きテキスト全文 → Document"""
+def parse(text: str, image_base: str = '') -> Document:
+    """注記付きテキスト全文 → Document
+
+    image_base: 挿絵ファイルを解決するベースURL（例 ミラーの files/ ディレクトリ）。
+                指定時は 挿絵の src を image_base + ファイル名 にする。
+    """
     text = text.replace('\r\n', '\n')
     lines = text.split('\n')
     title, author = lines[0].strip(), lines[1].strip()
@@ -131,7 +140,7 @@ def parse(text: str) -> Document:
             if mc:
                 pending['parts'].append(mc.group('rest'))
                 p = _make_paragraph(''.join(pending['parts']),
-                                    pending['level'], pending['type'])
+                                    pending['level'], pending['type'], image_base)
                 _set_layout(p, pending['layout'])
                 paragraphs.append(p)
                 pending = None
@@ -149,7 +158,8 @@ def parse(text: str) -> Document:
         mb = HEADING_BLOCK_RE.search(line)
         if mb:
             p = _make_paragraph(mb.group('t'), _MIDASHI_SIZE[mb.group('lv')],
-                                _MIDASHI_TYPE.get(mb.group('type'), 'normal'))
+                                _MIDASHI_TYPE.get(mb.group('type'), 'normal'),
+                                image_base)
             _set_layout(p, layout)
             paragraphs.append(p)
             continue
@@ -166,12 +176,13 @@ def parse(text: str) -> Document:
         mi = HEADING_INLINE_RE.search(line)
         if mi:
             p = _make_paragraph(mi.group('t'), _MIDASHI_SIZE[mi.group('lv')],
-                                _MIDASHI_TYPE.get(mi.group('type'), 'normal'))
+                                _MIDASHI_TYPE.get(mi.group('type'), 'normal'),
+                                image_base)
             _set_layout(p, layout)
             paragraphs.append(p)
             continue
 
-        p = _make_paragraph(line)
+        p = _make_paragraph(line, image_base=image_base)
         _set_layout(p, layout)
         paragraphs.append(p)
 
@@ -180,19 +191,31 @@ def parse(text: str) -> Document:
 
 
 def _make_paragraph(line: str, heading_level: int = 0,
-                    heading_type: str | None = None) -> Paragraph:
-    """1本の行テキスト → Paragraph（装飾抽出・未対応注記除去・ルビ分割）。"""
+                    heading_type: str | None = None,
+                    image_base: str = '') -> Paragraph:
+    """1本の行テキスト → Paragraph（装飾・挿絵抽出・未対応注記除去・ルビ分割）。"""
     decorations = []
     for m in DECORATE_RE.finditer(line):
         cls, tag = decorate.deco_class(m.group('kind'), m.group('dir'))
         decorations.append((m.group('t'), cls, tag))
     line = DECORATE_RE.sub(r'\g<t>', line)
+
+    image = None
+    mimg = IMG_RE.search(line)
+    if mimg:
+        src = (image_base + mimg.group('file')) if image_base else mimg.group('file')
+        w = int(mimg.group('w')) if mimg.group('w') else None
+        h = int(mimg.group('h')) if mimg.group('h') else None
+        image = (src, w, h, mimg.group('cap') or '')
+        line = IMG_RE.sub('', line)
+
     line = NOTE_RE.sub('', line)  # 未対応注記は安全に除去
     return Paragraph(
         segments=_split_ruby(line),
         heading_level=heading_level,
         heading_type=heading_type,
-        decorations=decorations or None)
+        decorations=decorations or None,
+        image=image)
 
 
 # ── レイアウト（字下げ・地付き・字詰め）ヘルパー ──────────────────

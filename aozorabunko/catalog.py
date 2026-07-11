@@ -54,7 +54,9 @@ class Work:
     def document(self):
         """パース済みDocument（タイトル・著者・段落構造）を返す。"""
         from .parser import parse
-        return parse(self.text())
+        # 挿絵はテキストと同じ files/ ディレクトリ（ミラー）を基準に解決する
+        image_base = self.mirror_url.rsplit('/', 1)[0] + '/'
+        return parse(self.text(), image_base=image_base)
 
 
 class Library:
