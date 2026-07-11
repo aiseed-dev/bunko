@@ -146,6 +146,8 @@ works(work_id PK, title, title_yomi, author, author_yomi,
 1. ~~Flutter 読者アプリの起工~~ → **完成（bunko v0.1.0）**。次: Android/iOSビルド・
    Web版のIndexedDB永続化・縦書きの禁則/挿絵対応・アプリ内の底本更新
 2. ~~Flet 工作員ツールの再構成~~ → **完成（青空工房 aozora_kobo.py）**: 検査/資産/検証の3タブ
+2.5 朗読パック: 生成側は**完成**（pybunko.audio ── VOICEVOX/edge-tts→Opus＋段落manifest）。
+    アプリ側の再生（just_audio等＋manifestシーク・ハイライト同期、端末TTSへのフォールバック）が次
 3. 共著の正規化（work_authors テーブル）が必要になったら追加
 4. 注記の追加対応（訓点・送り仮名・字の大きさ・罫囲み等）── MANUAL §5.1 のリズムで
 5. 公開: ~~GitHub push~~（済: aiseed-dev/bunko）。PyPIへの個別登録はしない（ユーザー決定）。

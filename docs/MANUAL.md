@@ -234,6 +234,32 @@ python -m pybunko.fonts aozora-gaiji.woff2  # 真の外字4,330字（≈2.8MB）
 
 GUIでは工房（app/pykobo/aozora_kobo.py）の**資産タブ**から同じものを生成できる。
 
+### 朗読パック（音声読み上げを「先に作っておく」）
+
+端末TTS（アプリ内リアルタイム合成）とは別に、工房側で**事前に**朗読音声を合成できる。
+合成テキストは `Paragraph.reading`（ルビ＝読み）なので誤読しない。
+
+```bash
+pip install -e 'app/pykobo[audio]'          # edge-tts（要ffmpeg）
+python -m pybunko.audio 走れメロス.zip -o out/merosu
+# → out/merosu.opus（音声・モノラルOpus 32k）
+# → out/merosu.audiobook.json（段落タイミング manifest）
+python -m pybunko.audio 作品.zip -o out/x --engine voicevox --voice 3   # VOICEVOX起動時
+```
+
+manifest 形式（アプリの段落ハイライト同期・目次→音声シークに使う）:
+
+```jsonc
+{ "version": 1, "title": "…", "author": "…",
+  "engine": "edge-tts", "voice": "ja-JP-NanamiNeural",
+  "audio": "merosu.opus", "total": 1234.5,
+  "paras": [ {"i": 0, "start": 0, "dur": 5.2}, … ] }   // i = Document段落index
+```
+
+サイズ目安: Opus 32k mono ≈ **0.24MB/分**（30分の短編 ≈ 7MB）。全17k作品の事前生成は
+非現実的なので、代表作の同梱＋任意生成（工房/CLI）という運用にする。
+エンジン音声の配布条件（VOICEVOXのクレジット表記等）は各規約に従うこと。
+
 ## 9. エコシステム
 
 | リポジトリ | 役割 |

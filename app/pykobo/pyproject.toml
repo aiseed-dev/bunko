@@ -26,6 +26,8 @@ washi = ["washi-md>=0.9"]
 parquet = ["pyarrow>=14"]
 # 外字グリフのサブセット埋め込み（official.to_official_html(gaiji='font', embed_font=True)）
 font = ["fonttools>=4.40", "brotli"]
+# 朗読パックの事前生成（edge-ttsエンジン。VOICEVOXはローカルRESTのため依存不要。要ffmpeg）
+audio = ["edge-tts>=6"]
 
 [tool.setuptools]
 packages = ["pybunko"]
