@@ -26,6 +26,43 @@ def _esc(s: str) -> str:
     return _html.escape(s, quote=False)
 
 
+# ── 外字の画像モード（公式流儀）──────────────────────────────────
+# 公式HTMLは第3・第4水準の外字を <img class="gaiji"> で埋め込む。
+# aozorabunko はUnicodeに解決してしまうので、パース前に外字注記を
+# 私用領域(PUA)で囲んだトークンに置換し、描画後に公式のimgタグへ差し戻す。
+# PUAで囲むので本文中の数字とは衝突しない。
+_GAIJI_NOTE = _re.compile(r'※［＃(?P<body>[^］]*)］')
+_GAIJI_MENKUTEN = _re.compile(r'([12])-(\d{1,2})-(\d{1,2})')
+_TOKEN = _re.compile('([0-9]+)')  # PUAで囲み本文の数字と衝突させない
+
+
+def _gaiji_img(body: str) -> str:
+    """外字注記の中身 → 公式の <img class="gaiji" />（面区点無しは注記スパン）。"""
+    m = _GAIJI_MENKUTEN.search(body)
+    if m:
+        men, ku, ten = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        folder = f'{men}-{ku:02d}'
+        name = f'{men}-{ku:02d}-{ten:02d}'
+        return (f'<img src="../../../gaiji/{folder}/{name}.png" '
+                f'alt="※({body})" class="gaiji" />')
+    return f'<span class="notes">※({body})</span>'
+
+
+def _tokenize_gaiji(text: str) -> tuple[str, list[str]]:
+    """外字注記を PUA トークンに置換し、対応するimg HTMLの表を返す。"""
+    imgs: list[str] = []
+
+    def _repl(m: _re.Match) -> str:
+        imgs.append(_gaiji_img(m.group('body')))
+        return f'{len(imgs) - 1}'
+
+    return _GAIJI_NOTE.sub(_repl, text), imgs
+
+
+def _detokenize(s: str, imgs: list[str]) -> str:
+    return _TOKEN.sub(lambda m: imgs[int(m.group(1))], s)
+
+
 # ── head / metadata ─────────────────────────────────────────────
 _HEAD = (
     '<?xml version="1.0" encoding="Shift_JIS"?>\r\n'
@@ -80,6 +117,7 @@ def _ruby_inner(p) -> str:
 
 def _render_body(text: str) -> str:
     """本文（main_text 内側）を公式流儀で組み立てる。"""
+    text, imgs = _tokenize_gaiji(text)        # 外字を先に退避（imgへ差し戻す）
     doc = parse(text, keep_blank_lines=True)  # 空行を <br /> として忠実に
     out, counter = ['<br />' + CRLF], 0
     started = False
@@ -113,15 +151,25 @@ def _render_body(text: str) -> str:
                        f'style="{"; ".join(styles)}">{inner}</div>' + CRLF)
         else:
             out.append(inner + '<br />' + CRLF)
-    return ''.join(out)
+    return _detokenize(''.join(out), imgs)      # トークン → 公式imgタグ
+
+
+def _render_note_line(line: str) -> str:
+    """底本・注記行を公式流儀で描画（外字img・ルビrb/rp・青空文庫リンク）。"""
+    from aozorabunko.parser import _split_ruby
+    line, imgs = _tokenize_gaiji(line)
+    rendered = ''.join(
+        (f'<ruby><rb>{_esc(t)}</rb><rp>（</rp>'
+         f'<rt>{_esc(r)}</rt><rp>）</rp></ruby>') if r else _esc(t)
+        for t, r in _split_ruby(line))
+    rendered = _detokenize(rendered, imgs)
+    return _AOZORA_LINK.sub(r'<a href="\1">青空文庫（\1）</a>', rendered)
 
 
 def _bibliographical(colophon: str) -> str:
     """底本情報ブロック。"""
     lines = [ln for ln in colophon.split('\n') if ln.strip()]
-    body = ''.join(
-        _AOZORA_LINK.sub(r'<a href="\1">青空文庫（\1）</a>', _esc(ln))
-        + '<br />' + CRLF for ln in lines)
+    body = ''.join(_render_note_line(ln) + '<br />' + CRLF for ln in lines)
     return ('<div class="bibliographical_information">\r\n<hr />\r\n<br />\r\n'
             + body + '<br />\r\n<br />\r\n</div>\r\n')
 
