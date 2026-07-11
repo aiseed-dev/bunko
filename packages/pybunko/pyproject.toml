@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pybunko"
+version = "0.1.0"
+description = "文庫（bunko）のPython側 ── 青空文庫の正本をUnicode構造化データに変換し、JSON/SQLite/EPUB/公式XHTML/フォント資産を生む"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+keywords = ["aozora", "aozorabunko", "bunko", "japanese", "ebook", "epub"]
+dependencies = []
+
+[project.scripts]
+# Shift_JIS 注記付きテキスト → Unicode JSON
+pybunko = "pybunko.__main__:main"
+
+[project.optional-dependencies]
+epub = ["ebooklib>=0.18"]
+# 縦書き・原稿用紙・PDF組版は aiseed-dev/washi-md に委譲
+washi = ["washi-md>=0.9"]
+# 全作品コーパスの列指向エクスポート（研究・NLP・RAG向け）
+parquet = ["pyarrow>=14"]
+# 外字グリフのサブセット埋め込み（official.to_official_html(gaiji='font', embed_font=True)）
+font = ["fonttools>=4.40", "brotli"]
+
+[tool.setuptools]
+packages = ["pybunko"]
+
+[tool.setuptools.package-data]
+# 外字・アクセント対応表（aozora2html由来 CC0）と出典README を同梱
+pybunko = ["data/*"]

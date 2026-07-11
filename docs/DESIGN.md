@@ -9,8 +9,7 @@ bunko/
 ├── app/bunko/        # Flutter 読者アプリ（lib/ web/ linux/ test/ tool/）
 │   └── assets -> ../../assets   # symlink（Flutterはリポ外パスを参照できないため）
 ├── packages/
-│   ├── aozorabunko/   # Python中核: 正本→Unicode Document→JSON/SQLite/EPUB/…（88テスト）
-│   └── pyaozora/      # Python: 外字フォント資産づくり＋公式XHTML検証（凍結維持）
+│   └── pybunko/       # Python中核（PyPI名 pybunko）: 正本→Unicode Document→JSON/SQLite/EPUB/…（88テスト）
 ├── assets/            # 共有データ資産（aozora.db・IPAex明朝・jis2ucs.json・cp932.bin）
 └── docs/              # この設計書・マニュアル（正本）
 ```
@@ -75,9 +74,9 @@ bunko/
 
 | リポジトリ | 層 | 責務 | 状態 |
 |---|---|---|---|
-| bunko/**packages/aozorabunko** | 変換・データ | 正本→Document(Unicode)→JSON/SQLite/EPUB/…。カタログ・図書カード。**中核**（bunkoに統合・単体PyPI公開はしない） | 88テスト |
+| bunko/**packages/pybunko** | 変換・データ | 正本→Document(Unicode)→JSON/SQLite/EPUB/…。カタログ・図書カード。**中核**（bunkoに統合・単体PyPI公開はしない） | 88テスト |
 | **aozora-tegami** | 工作員 | **Flet 工作員ツール**（変換プレビュー・EPUB・TTS。読者リーダーの役目は Flutter アプリへ移管） | — |
-| **bunko** | 読者＋資産＋docs | **モノレポ**: app/bunko=Flutter読者アプリ（dev.aiseed.bunko）／packages/pyaozora=外字フォント資産・公式XHTML検証（凍結維持）／assets/=共有データ資産／docs/=設計書・マニュアルの正本 | 13＋10テスト |
+| **bunko** | 読者＋資産＋docs | **モノレポ**: app/bunko=Flutter読者アプリ（dev.aiseed.bunko）／packages/pybunko=Python一体パッケージ（中核＋official＋fonts, PyPI名 pybunko）／assets/=共有データ資産／tools/=開発スクリプト／docs/=正本 | 13＋98テスト |
 | aiseed-dev/washi-md | 組版 | Markdown→縦書き/原稿用紙/PDF（[washi]で委譲） | 23テスト |
 | aiseed-dev/mdit-py-cjk-friendly | 組版基盤 | CJK対応 markdown-it-py（ルビ・傍点bouten） | 52テスト |
 | aiseed-dev/flutter_svg_cjk_friendly | Flutter補助 | SVGのCJK font/縦書き修正（Flutterアプリで必要時） | — |
@@ -112,7 +111,7 @@ works(work_id PK, title, title_yomi, author, author_yomi,
 
 | 資産 | 用途 | サイズ |
 |---|---|---|
-| `python -m pyaozora.fonts out.woff2` | アプリ同梱用・真の外字4,330字 | ≈2.8MB |
+| `python -m pybunko.fonts out.woff2` | アプリ同梱用・真の外字4,330字 | ≈2.8MB |
 | 作品単位サブセット（embed_font=True） | 自己完結HTML・使用字のみ | 数KB |
 | IPAex明朝 等まるごと | 本文＋外字を1フォントで | ≈7.5MB |
 

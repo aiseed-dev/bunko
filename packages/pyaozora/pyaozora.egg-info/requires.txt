@@ -1,0 +1,5 @@
+aozorabunko
+
+[font]
+fonttools>=4.40
+brotli

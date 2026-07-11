@@ -31,15 +31,16 @@ bunko/
 ├── app/
 │   └── bunko/                # Flutter 読者アプリ本体（lib/ web/ linux/ test/）
 │       ├── assets -> ../../assets   # symlink（共有資産を参照）
-│       └── tool/build_assets.py     # 共有資産の生成（Python・aozorabunko使用）
+│       └── （tool は tools/ へ移動）
 ├── packages/
-│   ├── aozorabunko/          # 中核ライブラリ: 正本→Unicode Document→JSON/SQLite/EPUB/…
-│   └── pyaozora/             # 外字フォント資産・公式XHTML検証（凍結維持）
+│   └── pybunko/              # PyPI: pybunko ── 正本→Unicode Document→JSON/SQLite/EPUB/
+│                             #   公式XHTML(official)・外字フォント資産(fonts) まで一体
 ├── assets/                   # 共有データ資産（aozora.db・IPAex明朝・jis2ucs.json・cp932.bin）
+├── tools/                    # 開発用: build_assets.py・build_gaiji_table.py・examples/
 └── docs/                     # 設計書（DESIGN.md）・マニュアル（MANUAL.md）の正本
 ```
 
-`pip install -e './packages/aozorabunko[epub]' -e ./packages/pyaozora` で従来どおり import できます（工房=aozora_kobo が使用）。
+`pip install -e './packages/pybunko[epub]'` で `import pybunko`（工房=aozora_kobo が使用）。
 全体設計は [docs/DESIGN.md](docs/DESIGN.md)、パイプラインの使い方・拡張の仕方は [docs/MANUAL.md](docs/MANUAL.md)。
 
 ## アーキテクチャ
@@ -64,7 +65,7 @@ flutter build linux --release
 データ資産の再生成（Python環境・aozorabunko が必要）:
 
 ```bash
-python app/bunko/tool/build_assets.py
+python tools/build_assets.py
 ```
 
 ## ライセンス
