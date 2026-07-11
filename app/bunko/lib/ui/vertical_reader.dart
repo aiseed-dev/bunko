@@ -28,13 +28,16 @@ class Glyph {
 /// 段落列 → グリフ配置（列は左端x=0基準で計算し、描画時に右起点へ反転）
 class VerticalLayout {
   final List<Glyph> glyphs = [];
+  /// 段落ごとの (開始列, 終了列exclusive) —— 目次ジャンプ・読み上げハイライト用
+  final List<(int, int)> paraCols = [];
+  late final double colW;
   late final double width;
   final double height;
   final double fontSize;
 
   VerticalLayout(List<Para> paras,
       {required this.height, required this.fontSize}) {
-    final colW = fontSize * 1.9; // 行送り（ルビの溝を含む）
+    colW = fontSize * 1.9; // 行送り（ルビの溝を含む）
     final step = fontSize * 1.18; // 字送り
     final padV = fontSize;
     final usable = height - padV * 2;
@@ -77,7 +80,11 @@ class VerticalLayout {
     }
 
     for (final p in paras) {
-      if (p.image != null) continue; // v1: 縦書きでは挿絵スキップ
+      final paraStartCol = col;
+      if (p.image != null) {
+        paraCols.add((col, col));
+        continue; // v1: 縦書きでは挿絵スキップ
+      }
       final heading = p.h != 0;
       final color = heading ? Sumi.shu : Sumi.ink;
       final size = heading ? fontSize * 1.15 : fontSize;
@@ -118,6 +125,7 @@ class VerticalLayout {
         }
       }
       newColumn(); // 段落＝改行（次の列へ）
+      paraCols.add((paraStartCol, col));
       if (heading) newColumn();
     }
     width = (col + 1) * colW + fontSize * 2;
@@ -127,19 +135,30 @@ class VerticalLayout {
 class VerticalReader extends StatelessWidget {
   final Doc doc;
   final double fontSize;
-  const VerticalReader({super.key, required this.doc, required this.fontSize});
+  final ScrollController? controller;
+  final int? highlightPara; // 読み上げ中の段落
+  final void Function(VerticalLayout layout)? onLayout; // 目次ジャンプ用に測定結果を返す
+  const VerticalReader(
+      {super.key,
+      required this.doc,
+      required this.fontSize,
+      this.controller,
+      this.highlightPara,
+      this.onLayout});
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, constraints) {
       final layout = VerticalLayout(doc.paras,
           height: constraints.maxHeight, fontSize: fontSize);
+      onLayout?.call(layout);
       return SingleChildScrollView(
+        controller: controller,
         scrollDirection: Axis.horizontal,
         reverse: true, // 冒頭（右端）から
         child: CustomPaint(
           size: Size(layout.width, constraints.maxHeight),
-          painter: _VerticalPainter(layout),
+          painter: _VerticalPainter(layout, highlightPara),
         ),
       );
     });
@@ -148,7 +167,8 @@ class VerticalReader extends StatelessWidget {
 
 class _VerticalPainter extends CustomPainter {
   final VerticalLayout layout;
-  _VerticalPainter(this.layout);
+  final int? highlightPara;
+  _VerticalPainter(this.layout, [this.highlightPara]);
 
   final _cache = <String, TextPainter>{};
 
@@ -171,6 +191,20 @@ class _VerticalPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    // 読み上げ中の段落を淡い朱でハイライト（列範囲を塗る）
+    final hp = highlightPara;
+    if (hp != null && hp < layout.paraCols.length) {
+      final (c0, c1) = layout.paraCols[hp];
+      if (c1 > c0) {
+        final xRight = size.width - c0 * layout.colW;
+        final xLeft = size.width - c1 * layout.colW;
+        canvas.drawRect(
+          Rect.fromLTRB(xLeft - layout.fontSize * 0.4, 0,
+              xRight + layout.fontSize * 0.2, size.height),
+          Paint()..color = Sumi.shu.withValues(alpha: 0.08),
+        );
+      }
+    }
     for (final g in layout.glyphs) {
       // 列は右→左: 論理x を右起点に反転
       final x = size.width - g.x - g.size * 1.6;
@@ -190,5 +224,6 @@ class _VerticalPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_VerticalPainter old) => old.layout != layout;
+  bool shouldRepaint(_VerticalPainter old) =>
+      old.layout != layout || old.highlightPara != highlightPara;
 }

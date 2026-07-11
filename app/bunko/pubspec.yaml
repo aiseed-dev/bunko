@@ -41,6 +41,8 @@ dependencies:
   path_provider: ^2.1.6
   path: ^1.9.1
   typed_data: ^1.4.0
+  flutter_tts: ^4.2.5
+  scrollable_positioned_list: ^0.3.8
 
 dev_dependencies:
   flutter_test:

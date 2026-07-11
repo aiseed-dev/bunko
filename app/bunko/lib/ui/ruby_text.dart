@@ -55,9 +55,12 @@ class RubyUnit extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(ruby,
-            style: style.copyWith(
-                fontSize: size * 0.5, color: Sumi.muted, height: 1.0)),
+        // ルビは表示のみ（コピー選択から除外 → コピー結果が本文だけになる）
+        SelectionContainer.disabled(
+          child: Text(ruby,
+              style: style.copyWith(
+                  fontSize: size * 0.5, color: Sumi.muted, height: 1.0)),
+        ),
         Text(base, style: style.copyWith(height: 1.1)),
       ],
     );
