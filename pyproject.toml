@@ -20,3 +20,7 @@ washi = ["washi-md>=0.8"]
 
 [tool.setuptools]
 packages = ["aozorabunko"]
+
+[tool.setuptools.package-data]
+# 外字対応表（JIS X 0213 面区点 → Unicode, aozora2html由来 CC0）を同梱
+aozorabunko = ["data/*.json"]

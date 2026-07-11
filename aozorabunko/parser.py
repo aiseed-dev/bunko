@@ -8,6 +8,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from . import gaiji
+
 # ルビ: ｜複合語《よみ》 または 漢字連続《よみ》
 RUBY_RE = re.compile(
     r'(?:｜(?P<base1>[^《｜]+)'
@@ -73,6 +75,7 @@ def parse(text: str) -> Document:
     for line in body.split('\n'):
         if not line.strip():
             continue
+        line = gaiji.resolve(line)  # 外字を実文字へ（未対応注記の除去より前）
         heading = 0
         m = HEADING_RE.search(line)
         if m:
