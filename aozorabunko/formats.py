@@ -12,8 +12,14 @@ from .parser import Document
 _CSS = '''
 body { font-family: serif; line-height: 1.9; }
 p { text-indent: 0; margin: 0 0 0.3em; }
-em.bouten { font-style: normal;
+em.sesame_dot, em.white_sesame_dot, em.black_circle, em.white_circle,
+em.bullseye, em.fisheye, em.saltire { font-style: normal;
   text-emphasis: filled sesame; -webkit-text-emphasis: filled sesame; }
+em.white_sesame_dot { text-emphasis: open sesame; -webkit-text-emphasis: open sesame; }
+em[class^="underline_"] { font-style: normal; text-decoration: underline; }
+em[class^="overline_"] { font-style: normal; text-decoration: overline; }
+span.futoji { font-weight: bold; }
+span.shatai { font-style: italic; }
 '''
 
 
@@ -51,10 +57,11 @@ def to_html(doc: Document) -> str:
             f'<ruby>{html.escape(t)}<rt>{html.escape(r)}</rt></ruby>'
             if r else html.escape(t)
             for t, r in p.segments)
-        if p.emphasis:
-            for t in p.emphasis:
-                inner = inner.replace(html.escape(t),
-                                      f'<em class="bouten">{html.escape(t)}</em>', 1)
+        if p.decorations:
+            for t, cls, tag in p.decorations:
+                esc = html.escape(t)
+                inner = inner.replace(
+                    esc, f'<{tag} class="{cls}">{esc}</{tag}>', 1)
         classes, styles = _layout_class_style(p)
         if p.heading_level:
             tag = f'h{p.heading_level}'

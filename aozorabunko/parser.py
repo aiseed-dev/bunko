@@ -8,14 +8,18 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from . import gaiji
+from . import decorate, gaiji
 
 # ルビ: ｜複合語《よみ》 または 漢字連続《よみ》
 RUBY_RE = re.compile(
     r'(?:｜(?P<base1>[^《｜]+)'
     r'|(?P<base2>[\u4E00-\u9FFF\u3005-\u3007\uF900-\uFAFF々〆ヵヶ]+))'
     r'《(?P<ruby>[^》]+)》')
-BOUTEN_RE = re.compile(r'(?P<t>.+?)［＃「(?P=t)」に傍点］')
+# 装飾: ○○［＃「○○」に傍点／に二重傍線／は太字／の左に傍点 …］
+_DECO_KW = '|'.join(decorate.KEYWORDS)
+DECORATE_RE = re.compile(
+    r'(?P<t>.+?)［＃「(?P=t)」(?:の(?P<dir>右|左|上|下)に|に|は)'
+    rf'(?P<kind>{_DECO_KW})］')
 NOTE_RE = re.compile(r'［＃[^］]*］')
 
 # 見出し ── 大=2/中=3/小=4（heading_level）、種別 normal/dogyo(同行)/mado(窓)。
@@ -57,7 +61,7 @@ class Paragraph:
     segments: list[Segment]
     heading_level: int = 0      # 0=本文, 2=大見出し, 3=中見出し, 4=小見出し
     heading_type: str | None = None  # 'normal' | 'dogyo'(同行) | 'mado'(窓)
-    emphasis: list[str] = None  # 傍点対象の文字列
+    decorations: list = None    # [(対象文字列, CSSクラス, HTMLタグ)] 傍点・傍線・太字等
     indent: int = 0             # 字下げ幅（em, 左マージン）
     align: str | None = None    # None | 'right'（地付き・字上げ）
     align_offset: int = 0       # 字上げの N（地からN字上げ, 右マージンem）
@@ -71,6 +75,14 @@ class Paragraph:
     def reading(self) -> str:
         """ルビを読みとして採用したテキスト（TTS向け）"""
         return ''.join(r if r else t for t, r in self.segments)
+
+    @property
+    def emphasis(self) -> list[str] | None:
+        """傍点（sesame_dot）対象の文字列。後方互換のための導出プロパティ。"""
+        if not self.decorations:
+            return None
+        e = [t for t, cls, _ in self.decorations if cls == 'sesame_dot']
+        return e or None
 
 
 @dataclass
@@ -168,15 +180,18 @@ def parse(text: str) -> Document:
 
 def _make_paragraph(line: str, heading_level: int = 0,
                     heading_type: str | None = None) -> Paragraph:
-    """1本の行テキスト → Paragraph（傍点抽出・未対応注記除去・ルビ分割）。"""
-    emphasis = [m.group('t') for m in BOUTEN_RE.finditer(line)]
-    line = BOUTEN_RE.sub(r'\g<t>', line)
+    """1本の行テキスト → Paragraph（装飾抽出・未対応注記除去・ルビ分割）。"""
+    decorations = []
+    for m in DECORATE_RE.finditer(line):
+        cls, tag = decorate.deco_class(m.group('kind'), m.group('dir'))
+        decorations.append((m.group('t'), cls, tag))
+    line = DECORATE_RE.sub(r'\g<t>', line)
     line = NOTE_RE.sub('', line)  # 未対応注記は安全に除去
     return Paragraph(
         segments=_split_ruby(line),
         heading_level=heading_level,
         heading_type=heading_type,
-        emphasis=emphasis or None)
+        decorations=decorations or None)
 
 
 # ── レイアウト（字下げ・地付き・字詰め）ヘルパー ──────────────────
