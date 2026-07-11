@@ -136,10 +136,9 @@ works(work_id PK, title, title_yomi, author, author_yomi,
 大容量統合メモリのAIミニPC（Ryzen AI Max+ 395 / 128GB級）を、工房の**重作業ノード**として使う。
 読者アプリの「サーバ不要」原則はそのまま ── これは**生成時だけ**動く自分の機械。
 
-1. **朗読パック量産**: ローカルニューラルTTS（Kokoro / Style-Bert-VITS2 等）を
-   OpenAI互換サーバ（Kokoro-FastAPI 等）で立て、`pybunko.audio --engine openai
-   --base-url http://<node>:8880/v1` で接続。クラウド（edge-tts）依存が消え、
-   代表作のバッチ生成が一晩で回る
+1. **朗読パック量産**: 日本語の本命は **Style-Bert-VITS2**（AGPL・内蔵FastAPIサーバ→
+   `--engine sbv2 --base-url http://<node>:5000`）。OpenAI互換サーバ（Kokoro-FastAPI等→
+   `--engine openai`）にも対応。クラウド（edge-tts）依存が消え、代表作のバッチ生成が一晩で回る
 2. **ローカルLLM司書（RAG）**: Ollama/llama.cpp の OpenAI互換APIに、コーパス
    （SQLite/JSONL/Parquet）検索を組み合わせて「紹介・推薦・質問応答」を手元で
    （HANDOFF当初のロードマップ項目）

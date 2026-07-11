@@ -110,3 +110,53 @@ def test_openai_speech_engine_against_fake_server(tmp_path):
         assert seen['auth'] == 'Bearer k'
     finally:
         srv.shutdown()
+
+
+def test_sbv2_engine_against_fake_server(tmp_path):
+    """Style-Bert-VITS2 の /voice（GET・クエリパラメータ）に正しく接続できる。"""
+    import http.server
+    import threading
+    import urllib.parse
+
+    from pybunko.audio import StyleBertVits2Engine
+
+    wav = tmp_path / "resp.wav"
+    subprocess.run(['ffmpeg', '-y', '-v', 'error', '-f', 'lavfi',
+                    '-i', 'anullsrc=r=24000:cl=mono', '-t', '0.2', str(wav)],
+                   check=True)
+    payload = wav.read_bytes()
+    seen = {}
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            u = urllib.parse.urlparse(self.path)
+            seen['path'] = u.path
+            seen['q'] = dict(urllib.parse.parse_qsl(u.query))
+            self.send_response(200)
+            self.send_header('Content-Type', 'audio/wav')
+            self.end_headers()
+            self.wfile.write(payload)
+
+        def log_message(self, *a):
+            pass
+
+    srv = http.server.HTTPServer(('127.0.0.1', 0), Handler)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        eng = StyleBertVits2Engine(f'http://127.0.0.1:{srv.server_port}',
+                                   model='jvnv-F1-jp', style='Neutral',
+                                   length=1.1)
+        out = tmp_path / "out.wav"
+        eng.synth('メロスは激怒した。', str(out))
+        assert out.read_bytes() == payload
+        assert seen['path'] == '/voice'
+        assert seen['q']['text'] == 'メロスは激怒した。'
+        assert seen['q']['model_name'] == 'jvnv-F1-jp'
+        assert seen['q']['language'] == 'JP'
+        assert seen['q']['length'] == '1.1'
+        # model_id 数値指定のときは model_id で送る
+        eng2 = StyleBertVits2Engine(f'http://127.0.0.1:{srv.server_port}', model=2)
+        eng2.synth('あ', str(out))
+        assert seen['q']['model_id'] == '2'
+    finally:
+        srv.shutdown()

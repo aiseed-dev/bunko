@@ -9,8 +9,10 @@
 難読漢字を誤読しない。これが事前合成でも効く、青空文庫の注記形式の利点。
 
 エンジン（生成時のみ使用。読者アプリはネット・エンジン不要）:
-- VoicevoxEngine … ローカルREST（http://127.0.0.1:50021）。高品質・キャラ音声・オフライン
-- EdgeEngine     … edge-tts（[audio]エクストラ）。ニューラル日本語音声・要ネットワーク
+- StyleBertVits2Engine … 日本語OSS TTSの本命（AGPL）。重作業ノードのFastAPIサーバへ
+- VoicevoxEngine … ローカルREST（http://127.0.0.1:50021）。キャラ音声・オフライン
+- OpenAiSpeechEngine … OpenAI互換 /v1/audio/speech（Kokoro-FastAPI等）
+- EdgeEngine     … edge-tts（[audio]エクストラ）。クラウド・暫定の便法
 
 エンコードに ffmpeg（外部コマンド）を使う。無ければ明確なエラーを出す。
 
@@ -95,6 +97,50 @@ class OpenAiSpeechEngine:
         req = urllib.request.Request(f'{self.base_url}/audio/speech',
                                      data=body, headers=headers, method='POST')
         data = urllib.request.urlopen(req, timeout=300).read()
+        Path(out_path).write_bytes(data)
+
+
+class StyleBertVits2Engine:
+    """Style-Bert-VITS2 の内蔵FastAPIサーバ（/voice）用。日本語OSS TTSの本命。
+
+    重作業ノード（MS-S1 MAX等）で `python server_fastapi.py` を起動しておく。
+    コードはAGPL（本プロジェクトと同系）。使用モデルの規約（JVNV・配布モデル等）に従うこと。
+
+        engine = StyleBertVits2Engine('http://ms-s1:5000',
+                                      model='jvnv-F1-jp', style='Neutral')
+    """
+    name = 'style-bert-vits2'
+    ext = 'wav'
+
+    def __init__(self, base_url: str = 'http://127.0.0.1:5000',
+                 model: str | int = 0, speaker_id: int = 0,
+                 style: str = 'Neutral', style_weight: float = 1.0,
+                 length: float = 1.0):
+        self.base_url = base_url.rstrip('/')
+        self.model = model
+        self.speaker_id = speaker_id
+        self.style = style
+        self.style_weight = style_weight
+        self.length = length  # 1.0=標準、大きいほどゆっくり（朗読は1.1程度も良い）
+        self.voice = f'{model}/{style}'
+
+    def synth(self, text: str, out_path: str) -> None:
+        params = {
+            'text': text,
+            'speaker_id': self.speaker_id,
+            'style': self.style,
+            'style_weight': self.style_weight,
+            'length': self.length,
+            'language': 'JP',
+            'auto_split': 'true',
+        }
+        if isinstance(self.model, int) or str(self.model).isdigit():
+            params['model_id'] = int(self.model)
+        else:
+            params['model_name'] = self.model
+        url = f'{self.base_url}/voice?' + urllib.parse.urlencode(params)
+        data = urllib.request.urlopen(
+            urllib.request.Request(url, method='GET'), timeout=600).read()
         Path(out_path).write_bytes(data)
 
 
@@ -209,11 +255,14 @@ def main(argv=None) -> int:
     ap.add_argument('input', help='注記付きテキスト（.txt / .zip / URL）')
     ap.add_argument('-o', '--out', required=True,
                     help='出力ベース名（→ <out>.opus / <out>.audiobook.json）')
-    ap.add_argument('--engine', choices=['edge', 'voicevox', 'openai'], default='edge')
+    ap.add_argument('--engine', choices=['edge', 'voicevox', 'openai', 'sbv2'], default='edge')
     ap.add_argument('--voice', default=None,
-                    help='edge: ja-JP-NanamiNeural 等 / voicevox: speaker番号 / openai: サーバ側の音声名')
+                    help='edge: ja-JP-NanamiNeural 等 / voicevox: speaker番号 / '
+                         'openai: 音声名 / sbv2: モデル名またはmodel_id')
+    ap.add_argument('--style', default='Neutral', help='sbv2のスタイル（Neutral等）')
     ap.add_argument('--base-url', default='http://127.0.0.1:8880/v1',
-                    help='openaiエンジンのエンドポイント（MS-S1 MAX等のローカルTTSサーバ）')
+                    help='openai/sbv2エンジンのエンドポイント（MS-S1 MAX等のローカルTTSサーバ。'
+                         'sbv2の既定ポートは5000）')
     ap.add_argument('--limit', type=int, default=None,
                     help='先頭N段落のみ（試作用）')
     a = ap.parse_args(argv)
@@ -223,6 +272,10 @@ def main(argv=None) -> int:
         engine = VoicevoxEngine(speaker=int(a.voice) if a.voice else 3)
     elif a.engine == 'openai':
         engine = OpenAiSpeechEngine(a.base_url, voice=a.voice or 'alloy')
+    elif a.engine == 'sbv2':
+        base = a.base_url if a.base_url != 'http://127.0.0.1:8880/v1' \
+            else 'http://127.0.0.1:5000'
+        engine = StyleBertVits2Engine(base, model=a.voice or 0, style=a.style)
     else:
         engine = EdgeEngine(voice=a.voice or 'ja-JP-NanamiNeural')
 
