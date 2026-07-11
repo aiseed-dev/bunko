@@ -8,6 +8,7 @@ library;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../data/models.dart';
 import '../theme.dart';
@@ -132,7 +133,9 @@ class VerticalLayout {
   }
 }
 
-class VerticalReader extends StatelessWidget {
+/// 縦書きはスクロールではなく**ページめくり**で読む（文庫本の形）。
+/// デスクトップ: ←/PageDown/Space=次の頁・→/PageUp=前の頁・左右端クリックでも可。
+class VerticalReader extends StatefulWidget {
   final Doc doc;
   final double fontSize;
   final ScrollController? controller;
@@ -147,23 +150,163 @@ class VerticalReader extends StatelessWidget {
       this.onLayout});
 
   @override
+  State<VerticalReader> createState() => _VerticalReaderState();
+}
+
+class _VerticalReaderState extends State<VerticalReader> {
+  late final ScrollController _controller =
+      widget.controller ?? ScrollController();
+  final FocusNode _focus = FocusNode();
+  VerticalLayout? _layout;
+  double _pageW = 0;
+
+  @override
+  void dispose() {
+    if (widget.controller == null) _controller.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
+
+  int get _page =>
+      _pageW <= 0 || !_controller.hasClients ? 0 : (_controller.offset / _pageW).round();
+
+  int get _pageCount {
+    final l = _layout;
+    if (l == null || _pageW <= 0) return 1;
+    return (l.width / _pageW).ceil().clamp(1, 9999);
+  }
+
+  void _goPage(int page) {
+    if (!_controller.hasClients || _pageW <= 0) return;
+    final target = (page * _pageW)
+        .clamp(0.0, _controller.position.maxScrollExtent);
+    _controller.animateTo(target,
+        duration: const Duration(milliseconds: 220), curve: Curves.easeOut);
+    setState(() {});
+  }
+
+  void _turn(int delta) => _goPage((_page + delta).clamp(0, _pageCount - 1));
+
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    switch (event.logicalKey) {
+      // 縦書きは右→左に進むので「←」が次の頁
+      case LogicalKeyboardKey.arrowLeft:
+      case LogicalKeyboardKey.pageDown:
+      case LogicalKeyboardKey.space:
+        _turn(1);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowRight:
+      case LogicalKeyboardKey.pageUp:
+        _turn(-1);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.home:
+        _goPage(0);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.end:
+        _goPage(_pageCount - 1);
+        return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, constraints) {
-      final layout = VerticalLayout(doc.paras,
-          height: constraints.maxHeight, fontSize: fontSize);
-      onLayout?.call(layout);
-      return SingleChildScrollView(
-        controller: controller,
-        scrollDirection: Axis.horizontal,
-        reverse: true, // 冒頭（右端）から
-        child: CustomPaint(
-          size: Size(layout.width, constraints.maxHeight),
-          painter: _VerticalPainter(layout, highlightPara),
+      final layout = VerticalLayout(widget.doc.paras,
+          height: constraints.maxHeight, fontSize: widget.fontSize);
+      _layout = layout;
+      widget.onLayout?.call(layout);
+      // 1頁 = ビューポートに収まる整数本の列（列が頁境界で切れない）
+      final colsPerPage =
+          (constraints.maxWidth / layout.colW).floor().clamp(1, 999);
+      _pageW = colsPerPage * layout.colW;
+
+      return Focus(
+        focusNode: _focus,
+        autofocus: true,
+        onKeyEvent: _onKey,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapUp: (d) {
+            _focus.requestFocus();
+            final x = d.localPosition.dx;
+            if (x < constraints.maxWidth * 0.25) {
+              _turn(1); // 左端 = 次の頁（読み進む方向）
+            } else if (x > constraints.maxWidth * 0.75) {
+              _turn(-1); // 右端 = 前の頁
+            }
+          },
+          child: Stack(children: [
+            SingleChildScrollView(
+              controller: _controller,
+              scrollDirection: Axis.horizontal,
+              reverse: true, // 冒頭（右端）から
+              physics: _ColumnPagePhysics(_pageW), // ドラッグでも列揃えの頁境界にスナップ
+              child: CustomPaint(
+                size: Size(
+                    // 末尾頁も整数頁ぶんに揃える（余白で埋める）
+                    (_pageCount * _pageW).clamp(layout.width, double.infinity),
+                    constraints.maxHeight),
+                painter: _VerticalPainter(layout, widget.highlightPara),
+              ),
+            ),
+            // 頁番号（右下・文庫本のノンブル風）
+            Positioned(
+              right: 12,
+              bottom: 6,
+              child: AnimatedBuilder(
+                animation: _controller,
+                builder: (context, _) => Text(
+                  '${_page + 1} / $_pageCount',
+                  style: const TextStyle(fontSize: 11, color: Sumi.muted),
+                ),
+              ),
+            ),
+          ]),
         ),
       );
     });
   }
 }
+
+/// 列揃えのページ幅（colW×N）でスナップするスクロール物理。
+class _ColumnPagePhysics extends ScrollPhysics {
+  final double pageW;
+  const _ColumnPagePhysics(this.pageW, {super.parent});
+
+  @override
+  _ColumnPagePhysics applyTo(ScrollPhysics? ancestor) =>
+      _ColumnPagePhysics(pageW, parent: buildParent(ancestor));
+
+  @override
+  Simulation? createBallisticSimulation(
+      ScrollMetrics position, double velocity) {
+    if (pageW <= 0 ||
+        (velocity <= 0 && position.pixels <= position.minScrollExtent) ||
+        (velocity >= 0 && position.pixels >= position.maxScrollExtent)) {
+      return super.createBallisticSimulation(position, velocity);
+    }
+    final tol = toleranceFor(position);
+    var page = position.pixels / pageW;
+    if (velocity < -tol.velocity) {
+      page -= 0.5;
+    } else if (velocity > tol.velocity) {
+      page += 0.5;
+    }
+    final target = (page.roundToDouble() * pageW)
+        .clamp(position.minScrollExtent, position.maxScrollExtent);
+    if ((target - position.pixels).abs() < tol.distance) return null;
+    return ScrollSpringSimulation(
+        spring, position.pixels, target, velocity, tolerance: tol);
+  }
+
+  @override
+  bool get allowImplicitScrolling => false;
+}
+
 
 class _VerticalPainter extends CustomPainter {
   final VerticalLayout layout;
