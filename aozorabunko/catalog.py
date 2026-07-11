@@ -143,6 +143,22 @@ class Library:
                 rows.extend(corpus.paragraph_rows(w, doc))
         return corpus.to_parquet(rows, path)
 
+    def index(self, works: list[Work] | None = None) -> list[dict]:
+        """作家別の目次データ（書架）。カタログから即・構造化データで返す。"""
+        from . import corpus
+        return corpus.author_index(works if works is not None else self.works)
+
+    def export_index_json(self, path: str,
+                          works: list[Work] | None = None) -> str:
+        """目次（書架）を JSON で書き出す（依存なし）。表示はFlutter/ビューア側。"""
+        import json
+        data = {'authors': self.index(works)}
+        data['total_authors'] = len(data['authors'])
+        data['total_works'] = sum(a['count'] for a in data['authors'])
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False)
+        return path
+
     def export_json(self, path: str, works: list[Work] | None = None,
                     limit: int | None = None) -> str:
         """コーパスを JSONL（1作品1行）で書き出す。標準ライブラリのみ・依存なし。

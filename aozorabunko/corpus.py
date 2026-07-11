@@ -66,6 +66,47 @@ def work_json_row(work, doc) -> dict:
     return d
 
 
+_KANA_ROWS = [
+    ('あ', 'あいうえお'), ('か', 'かきくけこがぎぐげご'),
+    ('さ', 'さしすせそざじずぜぞ'), ('た', 'たちつてとだぢづでど'),
+    ('な', 'なにぬねの'), ('は', 'はひふへほばびぶべぼぱぴぷぺぽ'),
+    ('ま', 'まみむめも'), ('や', 'やゆよ'), ('ら', 'らりるれろ'),
+    ('わ', 'わゐゑをん'),
+]
+
+
+def _kana_row(yomi: str) -> str:
+    """よみの頭文字 → 五十音の行ラベル（あ/か/…/その他）。"""
+    head = yomi[:1]
+    for label, chars in _KANA_ROWS:
+        if head in chars:
+            return label
+    return 'その他'
+
+
+def author_index(works) -> list[dict]:
+    """作家別の目次データ（書架）。作家をよみ順、作品をよみ順に整列。
+
+    カタログ（作家別作品一覧）から目次ページがすぐ作れる。出力は構造化データで、
+    表示（Flutter/ビューア）は別。各作家に五十音の行ラベル(row)を付す。
+    """
+    from collections import defaultdict
+    groups: dict[tuple, list] = defaultdict(list)
+    for w in works:
+        groups[(w.author_yomi, w.author)].append(w)
+    out = []
+    for (yomi, name) in sorted(groups):
+        ws = sorted(groups[(yomi, name)], key=lambda w: (w.title_yomi, w.title))
+        out.append({
+            'author': name, 'author_yomi': yomi, 'row': _kana_row(yomi),
+            'count': len(ws),
+            'works': [{'work_id': w.work_id, 'title': w.title,
+                       'title_yomi': w.title_yomi, 'card_url': w.card_url}
+                      for w in ws],
+        })
+    return out
+
+
 def to_parquet(rows: list[dict], path: str) -> str:
     """行のリストを Parquet ファイルに書き出す（要 `pip install aozorabunko[parquet]`）。"""
     import pyarrow as pa

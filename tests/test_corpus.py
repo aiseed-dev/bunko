@@ -40,6 +40,40 @@ def test_to_parquet_roundtrip(merosu_work, merosu_doc, tmp_path):
         set(table.column_names))
 
 
+def test_author_index():
+    """作家別目次（書架）: 作家よみ順・作品よみ順・五十音行ラベル。"""
+    from aozorabunko import Work
+
+    def w(title, tyomi, author, ayomi):
+        return Work(work_id='0', title=title, title_yomi=tyomi, author=author,
+                    author_yomi=ayomi, card_url='c', text_url='t', copyrighted=False)
+
+    works = [
+        w('坊っちゃん', 'ぼっちゃん', '夏目漱石', 'なつめそうせき'),
+        w('こころ', 'こころ', '夏目漱石', 'なつめそうせき'),
+        w('走れメロス', 'はしれめろす', '太宰治', 'だざいおさむ'),
+    ]
+    idx = corpus.author_index(works)
+    assert [a['author'] for a in idx] == ['太宰治', '夏目漱石']   # よみ順
+    assert idx[0]['row'] == 'た' and idx[1]['row'] == 'な'        # 五十音行
+    natsume = idx[1]
+    assert natsume['count'] == 2
+    assert [x['title'] for x in natsume['works']] == ['こころ', '坊っちゃん']  # 作品よみ順
+
+
+def test_export_index_json(tmp_path):
+    from aozorabunko import Library, Work
+    lib = Library.__new__(Library)
+    works = [Work(work_id='1', title='あ', title_yomi='あ', author='芥川',
+                  author_yomi='あくたがわ', card_url='', text_url='', copyrighted=False)]
+    out = tmp_path / "index.json"
+    lib.export_index_json(str(out), works=works)
+    import json
+    d = json.loads(out.read_text(encoding='utf-8'))
+    assert d['total_authors'] == 1 and d['total_works'] == 1
+    assert d['authors'][0]['author'] == '芥川'
+
+
 def test_export_json_jsonl(merosu_work, tmp_path):
     """export_json は JSONL（1作品1行）で構造化Unicodeデータを書き出す。依存なし。"""
     import json
