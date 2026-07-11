@@ -1,7 +1,7 @@
 /// 読書画面 —— doc列のUnicodeデータを描くだけ（外字も実文字・画像も注記も無し）。
 ///
 /// 機能: 横書き（ルビ上付き・ドラッグ選択コピー）／縦書き（自前レイアウト）、
-/// 目次（見出し階層・章の分量バー・現在位置・進捗ジャンプ）、
+/// 目次（公式XHTMLの目次パネルと同じ見出し階層リスト・現在位置しおり）、
 /// 音声読み上げ（ルビ＝読みデータで誤読しない・段落ハイライト同期・自動追従）、
 /// 全文コピー、文字サイズ。未取得の本文はミラーから取得しdocへ保存。
 library;
@@ -117,7 +117,7 @@ class _ReaderPageState extends State<ReaderPage> {
     if (mounted) setState(() {}); // 縦書きハイライト・再生アイコン更新
   }
 
-  // ── 目次シート（工夫: 階層・分量バー・現在位置・進捗ジャンプ） ──
+  // ── 目次シート（公式の目次パネル準拠: 見出し階層のみ＋現在位置しおり） ──
   void _showToc(Doc doc) {
     final entries = buildToc(doc);
     final current = _currentParaIndex();
@@ -130,7 +130,7 @@ class _ReaderPageState extends State<ReaderPage> {
         if (entries.isEmpty) {
           return const Padding(
             padding: EdgeInsets.all(28),
-            child: Text('この作品には見出しがありません（短編）',
+            child: Text('この作品に目次（見出し）はありません',
                 style: TextStyle(color: Sumi.muted)),
           );
         }
@@ -182,29 +182,16 @@ class _ReaderPageState extends State<ReaderPage> {
                             margin: const EdgeInsets.only(right: 10),
                             color: active ? Sumi.shu : Colors.transparent),
                         Expanded(
-                          child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(e.label,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: e.level == 2 ? 15 : 13.5,
-                                      fontWeight: e.level == 2
-                                          ? FontWeight.w600
-                                          : FontWeight.w400,
-                                      color: e.kind == TocKind.colophon
-                                          ? Sumi.muted
-                                          : (active ? Sumi.shu : Sumi.ink),
-                                    )),
-                                if (e.kind == TocKind.heading && e.share > 0)
-                                  Container(
-                                    margin: const EdgeInsets.only(top: 4),
-                                    height: 2,
-                                    width: 160 * e.share,
-                                    color: Sumi.rule,
-                                  ),
-                              ]),
+                          child: Text(e.label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: e.level == 2 ? 15 : 13.5,
+                                fontWeight: e.level == 2
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
+                                color: active ? Sumi.shu : Sumi.ink,
+                              )),
                         ),
                       ]),
                     ),

@@ -40,18 +40,41 @@ class BunkoDb {
       'card_url,text_url,copyrighted,'
       '(doc IS NOT NULL) AS has_doc,(card IS NOT NULL) AS has_card';
 
-  /// 書架: 作家別の作品数（よみ順）。行タブでの絞り込みは row 引数で。
-  List<AuthorGroup> authors({String? row}) {
-    final where = row == null ? '' : 'WHERE row = ?';
+  /// 書架: 作家別の作品数（よみ順）。行タブ（row）と個別かな（initials）で絞り込み。
+  /// 公式サイトの総合インデックス（作家別: あ行→ア・イ・ウ・エ・オ）に対応する。
+  List<AuthorGroup> authors({String? row, List<String>? initials}) {
+    final conds = <String>[];
+    final args = <Object?>[];
+    if (row != null) {
+      conds.add('row = ?');
+      args.add(row);
+    }
+    if (initials != null && initials.isNotEmpty) {
+      conds.add('substr(author_yomi,1,1) IN '
+          '(${List.filled(initials.length, '?').join(',')})');
+      args.addAll(initials);
+    }
+    final where = conds.isEmpty ? '' : 'WHERE ${conds.join(' AND ')}';
     final rs = _db.select(
         'SELECT author,author_yomi,row,COUNT(*) AS c FROM works $where '
         'GROUP BY author,author_yomi ORDER BY author_yomi',
-        row == null ? const [] : [row]);
+        args);
     return [
       for (final r in rs)
         AuthorGroup(r['author'] as String, r['author_yomi'] as String,
             (r['row'] as String?) ?? 'その他', r['c'] as int)
     ];
+  }
+
+  /// 作品別インデックス（公式の「公開中 作品別一覧」相当）: 作品名よみの頭文字で絞る。
+  List<WorkMeta> worksByTitleKana(List<String> initials, {int limit = 500}) {
+    if (initials.isEmpty) return const [];
+    final rs = _db.select(
+        'SELECT $_cols FROM works WHERE substr(title_yomi,1,1) IN '
+        '(${List.filled(initials.length, '?').join(',')}) '
+        'ORDER BY title_yomi, title LIMIT ?',
+        [...initials, limit]);
+    return [for (final r in rs) _meta(r)];
   }
 
   /// 作品名・著者名・よみ の部分一致検索
