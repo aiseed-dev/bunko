@@ -40,6 +40,23 @@ def test_to_parquet_roundtrip(merosu_work, merosu_doc, tmp_path):
         set(table.column_names))
 
 
+def test_export_json_jsonl(merosu_work, tmp_path):
+    """export_json は JSONL（1作品1行）で構造化Unicodeデータを書き出す。依存なし。"""
+    import json
+    from aozorabunko import Library, Document
+    lib = Library.__new__(Library)          # カタログ取得を避ける
+    out = tmp_path / "corpus.jsonl"
+    lib.export_json(str(out), works=[merosu_work])
+    lines = out.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 1
+    row = json.loads(lines[0])
+    assert row['work_id'] == '1567' and row['title'] == '走れメロス'
+    assert row['title_yomi'] and 'paragraphs' in row
+    # 一次データだけで Document を復元でき、ルビも保持
+    doc = Document.from_dict(row)
+    assert doc.to_speech_text()[0] == 'メロスは激怒した。'
+
+
 def test_library_export_parquet_offline(merosu_work, tmp_path):
     # Library.export_parquet を、works を明示して（カタログ取得なしで）検証
     pytest.importorskip("pyarrow.parquet")

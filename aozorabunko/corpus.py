@@ -52,6 +52,20 @@ def work_row(work, doc) -> dict:
     }
 
 
+def work_json_row(work, doc) -> dict:
+    """作品 → 構造化Unicodeデータ1件（書誌＋Document.to_dict）。JSONL一行用。
+
+    外字・アクセント解決済みの実Unicode文字。これが「残すべき一次データ」で、
+    Flutter/Dart 等はこれを描くだけで表示でき、他形式も後から生成できる。
+    """
+    d = doc.to_dict()
+    d['work_id'] = work.work_id
+    d['title_yomi'] = work.title_yomi
+    d['author_yomi'] = work.author_yomi
+    d['copyrighted'] = work.copyrighted
+    return d
+
+
 def to_parquet(rows: list[dict], path: str) -> str:
     """行のリストを Parquet ファイルに書き出す（要 `pip install aozorabunko[parquet]`）。"""
     import pyarrow as pa

@@ -143,6 +143,30 @@ class Library:
                 rows.extend(corpus.paragraph_rows(w, doc))
         return corpus.to_parquet(rows, path)
 
+    def export_json(self, path: str, works: list[Work] | None = None,
+                    limit: int | None = None) -> str:
+        """コーパスを JSONL（1作品1行）で書き出す。標準ライブラリのみ・依存なし。
+
+        各行は構造化Unicodeデータ（外字解決済み・ルビは読みデータ）。
+        「残すべき一次データ」を素直に資産化する形。取得失敗作品はスキップ。
+        """
+        import json
+        from . import corpus
+        targets = list(works if works is not None else self.works)
+        if limit is not None:
+            targets = targets[:limit]
+        n = 0
+        with open(path, 'w', encoding='utf-8') as f:
+            for w in targets:
+                try:
+                    doc = w.document()
+                except Exception:
+                    continue
+                f.write(json.dumps(corpus.work_json_row(w, doc),
+                                   ensure_ascii=False) + '\n')
+                n += 1
+        return path
+
 
 def _fetch(url: str, cache: Path) -> bytes:
     if cache.exists():
