@@ -36,8 +36,8 @@ _GAIJI_MENKUTEN = _re.compile(r'([12])-(\d{1,2})-(\d{1,2})')
 _TOKEN = _re.compile('([0-9]+)')  # PUAで囲み本文の数字と衝突させない
 
 
-def _gaiji_img(body: str) -> str:
-    """外字注記の中身 → 公式の <img class="gaiji" />（面区点無しは注記スパン）。"""
+def _gaiji_image(body: str) -> str:
+    """外字注記 → 公式の <img class="gaiji" />（面区点無しは注記スパン）。"""
     m = _GAIJI_MENKUTEN.search(body)
     if m:
         men, ku, ten = int(m.group(1)), int(m.group(2)), int(m.group(3))
@@ -48,15 +48,33 @@ def _gaiji_img(body: str) -> str:
     return f'<span class="notes">※({body})</span>'
 
 
-def _tokenize_gaiji(text: str) -> tuple[str, list[str]]:
-    """外字注記を PUA トークンに置換し、対応するimg HTMLの表を返す。"""
-    imgs: list[str] = []
+def _gaiji_font(body: str) -> str:
+    """外字注記 → 実Unicode文字（<span class="gaiji">）。現代的なフォント化。
+
+    第3・第4水準はほぼUnicodeに存在するので、画像でなく実文字を出す。
+    選択・検索・読み上げが効き、PNG依存も消える。Unicode化できない外字だけ
+    注記スパンにフォールバックする。フォントは head の .gaiji で指定。
+    """
+    from aozorabunko.gaiji import resolve_note_body
+    ch = resolve_note_body(body)
+    if ch is not None:
+        return f'<span class="gaiji">{_esc(ch)}</span>'
+    return f'<span class="notes">※({body})</span>'
+
+
+_GAIJI_RENDER = {'image': _gaiji_image, 'font': _gaiji_font}
+
+
+def _tokenize_gaiji(text: str, mode: str = 'image') -> tuple[str, list[str]]:
+    """外字注記を PUA トークンに置換し、対応するHTML片の表を返す。"""
+    render = _GAIJI_RENDER[mode]
+    frags: list[str] = []
 
     def _repl(m: _re.Match) -> str:
-        imgs.append(_gaiji_img(m.group('body')))
-        return f'{len(imgs) - 1}'
+        frags.append(render(m.group('body')))
+        return f'{len(frags) - 1}'
 
-    return _GAIJI_NOTE.sub(_repl, text), imgs
+    return _GAIJI_NOTE.sub(_repl, text), frags
 
 
 def _detokenize(s: str, imgs: list[str]) -> str:
@@ -115,9 +133,9 @@ def _ruby_inner(p) -> str:
     return inner
 
 
-def _render_body(text: str) -> str:
+def _render_body(text: str, gaiji: str = 'image') -> str:
     """本文（main_text 内側）を公式流儀で組み立てる。"""
-    text, imgs = _tokenize_gaiji(text)        # 外字を先に退避（imgへ差し戻す）
+    text, frags = _tokenize_gaiji(text, gaiji)  # 外字を先に退避（img/文字へ差し戻す）
     doc = parse(text, keep_blank_lines=True)  # 空行を <br /> として忠実に
     out, counter = ['<br />' + CRLF], 0
     started = False
@@ -151,30 +169,31 @@ def _render_body(text: str) -> str:
                        f'style="{"; ".join(styles)}">{inner}</div>' + CRLF)
         else:
             out.append(inner + '<br />' + CRLF)
-    return _detokenize(''.join(out), imgs)      # トークン → 公式imgタグ
+    return _detokenize(''.join(out), frags)     # トークン → img もしくは実文字
 
 
-def _render_note_line(line: str) -> str:
+def _render_note_line(line: str, gaiji: str = 'image') -> str:
     """底本・注記行を公式流儀で描画（外字img・ルビrb/rp・青空文庫リンク）。"""
     from aozorabunko.parser import _split_ruby
-    line, imgs = _tokenize_gaiji(line)
+    line, frags = _tokenize_gaiji(line, gaiji)
     rendered = ''.join(
         (f'<ruby><rb>{_esc(t)}</rb><rp>（</rp>'
          f'<rt>{_esc(r)}</rt><rp>）</rp></ruby>') if r else _esc(t)
         for t, r in _split_ruby(line))
-    rendered = _detokenize(rendered, imgs)
+    rendered = _detokenize(rendered, frags)
     return _AOZORA_LINK.sub(r'<a href="\1">青空文庫（\1）</a>', rendered)
 
 
-def _bibliographical(colophon: str) -> str:
+def _bibliographical(colophon: str, gaiji: str = 'image') -> str:
     """底本情報ブロック。"""
     lines = [ln for ln in colophon.split('\n') if ln.strip()]
-    body = ''.join(_render_note_line(ln) + '<br />' + CRLF for ln in lines)
+    body = ''.join(_render_note_line(ln, gaiji) + '<br />' + CRLF for ln in lines)
     return ('<div class="bibliographical_information">\r\n<hr />\r\n<br />\r\n'
             + body + '<br />\r\n<br />\r\n</div>\r\n')
 
 
-def to_official_html(text: str, *, css: str = '../../aozora.css') -> str:
+def to_official_html(text: str, *, css: str = '../../aozora.css',
+                     gaiji: str = 'image') -> str:
     """注記付きテキスト全文 → 公式XHTML（文字列, CRLF）。"""
     text = text.replace('\r\n', '\n')
     lines = text.split('\n')
@@ -185,13 +204,15 @@ def to_official_html(text: str, *, css: str = '../../aozora.css') -> str:
     doc = parse(text)
     head = _HEAD.format(css=css, title=_esc(title), author=_esc(author),
                         title_full=_esc(f'{author} {title}'.strip()))
+    if gaiji == 'font':
+        head = head.replace('</head>\r\n', '\t<style type="text/css">\r\n\t.gaiji { font-family: "IPAmjMincho","Hiragino Mincho ProN","Noto Serif CJK JP","BIZ UDMincho",serif; }\r\n\t</style>\r\n' + '</head>\r\n')
     metadata = (f'<h1 class="title">{_esc(title)}</h1>\r\n'
                 f'<h2 class="author">{_esc(author)}</h2>\r\n'
                 '<br />\r\n<br />\r\n</div>\r\n')
     main_open = '<div id="contents" style="display:none"></div><div class="main_text">'
-    body = _render_body(text)
+    body = _render_body(text, gaiji)
     main_close = '</div>\r\n'
-    biblio = _bibliographical(doc.colophon) if doc.colophon else ''
+    biblio = _bibliographical(doc.colophon, gaiji) if doc.colophon else ''
     return (head + metadata + main_open + body + main_close
             + biblio + _NOTATION_NOTES + _CARD)
 

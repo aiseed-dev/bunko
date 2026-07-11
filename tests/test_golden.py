@@ -53,12 +53,22 @@ def test_page_skeleton():
 
 
 def test_gaiji_image_mode():
-    """第3・第4水準の外字は公式流儀の <img class="gaiji" /> になる。"""
+    """既定（image）では第3・第4水準の外字が公式流儀の <img class="gaiji" /> になる。"""
     # 第3水準 1-91-48 → gaiji/1-91/1-91-48.png（面区点はゼロ詰め、altは注記そのまま）
-    img = converter._gaiji_img("「埒のつくり＋虎」、第3水準1-91-48")
+    img = converter._gaiji_image("「埒のつくり＋虎」、第3水準1-91-48")
     assert img == ('<img src="../../../gaiji/1-91/1-91-48.png" '
                    'alt="※(「埒のつくり＋虎」、第3水準1-91-48)" class="gaiji" />')
-    # 本文中でも差し戻される
     html = to_official_html("題\n著\n\n袁※［＃「にんべん＋參」、第4水準2-1-79］は\n")
     assert '<img src="../../../gaiji/2-01/2-01-79.png"' in html
     assert 'class="gaiji" />は' in html
+
+
+def test_gaiji_font_mode():
+    """gaiji='font' では外字が実Unicode文字（画像でなく <span class="gaiji">）になる。"""
+    # 面区点 1-06-75 → 雪だるま ☃（aozorabunko の解決を利用）
+    assert converter._gaiji_font("「雪だるま」、1-06-75") == '<span class="gaiji">☃</span>'
+    html = to_official_html(
+        "題\n著\n\n袁※［＃「にんべん＋參」、第4水準2-1-79］は\n", gaiji='font')
+    assert '<img' not in html                      # 画像は使わない
+    assert '<span class="gaiji">' in html          # 実文字を span で
+    assert '.gaiji { font-family:' in html         # JIS X 0213 対応フォント指定
