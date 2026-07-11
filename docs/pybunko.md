@@ -97,4 +97,4 @@ doc.to_html() / to_epub(path) / to_speech_text()
 
 ## ライセンス
 
-コードはMIT。収録ファイルの利用は「[青空文庫収録ファイルの取り扱い規準](https://www.aozora.gr.jp/guide/kijyunn.html)」に従ってください。
+コードは AGPL-3.0-or-later（[LICENSING.md](LICENSING.md)）。収録ファイルの利用は「[青空文庫収録ファイルの取り扱い規準](https://www.aozora.gr.jp/guide/kijyunn.html)」に従ってください。

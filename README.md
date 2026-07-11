@@ -71,6 +71,7 @@ python tools/build_assets.py
 
 ## ライセンス
 
-コードはMIT。IPAexフォントは IPA Font License 1.0（assets/fonts/ 参照）。
+コードは **AGPL-3.0-or-later**（Copyright (C) 2026 aiseed.dev）。データは **CC BY 4.0 基本**（出典: 青空文庫）。
+iOS等ストア配布はデュアルライセンスで対応。詳細・例外（CC0対応表・IPAexフォント等）は [docs/LICENSING.md](docs/LICENSING.md)。
 外字対応表は aozora2html 由来（CC0）。図書カードのメタデータは CC BY 4.0（青空文庫）。
 収録ファイルの利用は「青空文庫収録ファイルの取り扱い規準」に従ってください。

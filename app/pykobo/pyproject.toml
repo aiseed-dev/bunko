@@ -10,7 +10,7 @@ version = "0.1.0"
 description = "文庫（bunko）のPython側 ── 青空文庫の正本をUnicode構造化データに変換し、JSON/SQLite/EPUB/公式XHTML/フォント資産を生む"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = { text = "AGPL-3.0-or-later" }
 keywords = ["aozora", "aozorabunko", "bunko", "japanese", "ebook", "epub"]
 dependencies = []
 
