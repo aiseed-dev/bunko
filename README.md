@@ -7,14 +7,21 @@
 
 ## これは何か
 
-青空文庫のリーダーアプリと変換ツール群です。カタログ検索（よみ対応）、ルビ付き表示、EPUB出力（Kindle / Google Play ブックス対応）、読み上げ（VOICEVOX / OS標準TTS）が動きます。
+**工作員（入力・校正・保守）向けの Flet ツール群**です。変換プレビュー（カタログ検索・
+ルビ付き表示）、EPUB出力（Kindle / Google Play ブックス対応）、読み上げ（VOICEVOX /
+OS標準TTS）が動きます。
+
+役割分担（全体設計は aozorabunko の DESIGN.md）:
+
+- **読者アプリ** … Flutter（Web/iOS/Android/デスクトップ）。データ資産（SQLite＋外字フォント）を同梱して描く
+- **工作員ツール** … Flet（このリポジトリ）。Pythonパイプライン（`aozorabunko`）を**直接 import** して、変換確認・外字チェック・データ資産づくりを行う
 
 依存しているのは、次の2つ**だけ**です。
 
 1. 青空文庫GitHubミラーの作品リストCSV（テキスト）
 2. 同ミラーの注記付きテキストzip
 
-サーバーサイドのロジックはありません。データベースもAPIもありません。一度開いた作品は手元にキャッシュされ、以後は**オフラインでも**検索・閲覧できます。機内モードで動く図書館です。
+サーバーサイドのロジックはありません。一度開いた作品は手元にキャッシュされ、以後は**オフラインでも**検索・閲覧できます。機内モードで動く図書館です。
 
 ## なぜサーバを増やさないのか
 
@@ -26,11 +33,18 @@
 
 ```bash
 pip install "aozorabunko[epub]" flet
-flet run aozora_shinkan.py          # リーダー（検索→閲覧）
+flet run aozora_shinkan.py          # 変換プレビュー（検索→閲覧・外字も実文字表示）
 python aozora2epub.py <zipのURL>    # EPUB変換（Send to Kindle等へ）
 ```
 
-検索・取得・パース・変換は [`aozorabunko`](https://github.com/aiseed-dev/aozorabunko) ライブラリに委譲しています。このリポジトリは**ライブラリの最初の利用例**です（外字・アクセントも解決されて表示されます）。
+検索・取得・パース・変換は [`aozorabunko`](https://github.com/aiseed-dev/aozorabunko) ライブラリに委譲しています。このリポジトリは**ライブラリの利用例であり、工作員の作業台**です。
+
+読者アプリ（Flutter）に同梱するデータ資産づくり:
+
+```bash
+python -c "from aozorabunko import Library; Library().build_sqlite('aozora.db')"
+python -m pyaozora.fonts aozora-gaiji.woff2   # 真の外字4,330字（≈2.8MB）
+```
 
 読み上げ（任意）:
 
@@ -44,7 +58,7 @@ python aozora_tts.py                # 変換デモ
 
 | ファイル | 役割 |
 |---|---|
-| `aozora_shinkan.py` | リーダー本体（UIのみ。検索・パースは `aozorabunko` に委譲） |
+| `aozora_shinkan.py` | 変換プレビュー（UIのみ。検索・パースは `aozorabunko` に委譲） |
 | `aozora2epub.py` | 注記付きテキスト → EPUB3 変換（`aozorabunko.parse` + `to_epub`） |
 | `aozora_tts.py` | 読み上げテキスト生成・TTSエンジン接続（ルビ＝読みデータ） |
 
@@ -54,12 +68,15 @@ python aozora_tts.py                # 変換デモ
 - **カタログはCSV一枚**: `index_pages/list_person_all_extended_utf8.zip` に全作品・全著者・よみ・著作権フラグが揃っています。著作権存続作品はデフォルトで除外しています。
 - **公式サーバーには触りません**: 取得はすべてGitHubミラー（raw.githubusercontent.com）経由です。
 
-## ロードマップ
+## ロードマップ（工作員ツールとして）
 
-- [ ] 注記対応の拡充（外字のUnicode解決、字下げ、傍点の網羅）
-- [ ] 縦書き表示
-- [ ] 読み上げのリーダー統合（段落ハイライト同期）
-- [ ] ローカルLLMによる作品検索・紹介（これも手元で動かします）
+- [x] 注記対応の拡充（外字のUnicode解決・字下げ・傍点 → `aozorabunko` 側で対応済み）
+- [ ] 未対応注記・未解決外字（〓）の検出パネル
+- [ ] データ資産づくりのGUI（build_sqlite / フォント生成 / 図書カード取り込み）
+- [ ] pyaozora ゴールデン検証の diff 表示
+- [ ] 読み上げの統合（段落ハイライト同期）
+
+縦書き表示・読者向けUIは Flutter 読者アプリ側で（aozorabunko/DESIGN.md 参照）。
 
 ## ライセンス
 
