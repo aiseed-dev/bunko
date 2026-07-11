@@ -30,12 +30,20 @@ CREATE TABLE IF NOT EXISTS works(
   row          TEXT,            -- 五十音行（あ/か/…/その他）
   card_url     TEXT, text_url   TEXT,
   copyrighted  INTEGER,
-  doc          TEXT             -- 作品本文の構造化データ（JSONのまま）。NULL=未取得
+  doc          TEXT,            -- 作品本文の構造化データ（JSONのまま）。NULL=未取得
+  card         TEXT             -- 図書カード詳細（底本・入力者等, JSONのまま）。NULL=未取得
 );
 CREATE INDEX IF NOT EXISTS ix_author_yomi ON works(author_yomi);
 CREATE INDEX IF NOT EXISTS ix_title_yomi  ON works(title_yomi);
 CREATE INDEX IF NOT EXISTS ix_row         ON works(row);
 """
+
+
+def _migrate(con: sqlite3.Connection) -> None:
+    """既存DBに後から増えた列を足す（card列の無い初期DBを更新）。"""
+    cols = {r[1] for r in con.execute("PRAGMA table_info(works)")}
+    if 'card' not in cols:
+        con.execute("ALTER TABLE works ADD COLUMN card TEXT")
 
 _UPSERT = """
 INSERT INTO works
@@ -54,6 +62,7 @@ def build_catalog(works, path: str) -> str:
     con = sqlite3.connect(path)
     try:
         con.executescript(_SCHEMA)
+        _migrate(con)
         con.executemany(_UPSERT, [{
             'work_id': w.work_id, 'title': w.title, 'title_yomi': w.title_yomi,
             'author': w.author, 'author_yomi': w.author_yomi,
@@ -94,6 +103,35 @@ def load_document(path: str, work_id: str) -> dict | None:
     return json.loads(r[0]) if r and r[0] else None
 
 
+def store_cards(path: str, items) -> int:
+    """(work_id, card) を works.card に格納。card は dict か JSON文字列。"""
+    rows = [((json.dumps(c, ensure_ascii=False) if not isinstance(c, str) else c), wid)
+            for wid, c in items]
+    con = sqlite3.connect(path)
+    try:
+        _migrate(con)
+        con.executemany("UPDATE works SET card=? WHERE work_id=?", rows)
+        con.commit()
+        return con.total_changes
+    finally:
+        con.close()
+
+
+def store_card(path: str, work_id: str, card) -> None:
+    store_cards(path, [(work_id, card)])
+
+
+def load_card(path: str, work_id: str) -> dict | None:
+    """works.card（図書カード詳細JSON）→ dict。未取得なら None。"""
+    con = sqlite3.connect(path)
+    try:
+        r = con.execute("SELECT card FROM works WHERE work_id=?",
+                        (work_id,)).fetchone()
+    finally:
+        con.close()
+    return json.loads(r[0]) if r and r[0] else None
+
+
 def search(path: str, q: str, limit: int = 30) -> list[dict]:
     """作品名・著者名・よみ の部分一致検索（メタデータのみ・速い）。"""
     like = f'%{q}%'
@@ -127,9 +165,11 @@ def authors(path: str) -> list[dict]:
 def stats(path: str) -> dict:
     con = sqlite3.connect(path)
     try:
+        _migrate(con)
         n = con.execute("SELECT COUNT(*) FROM works").fetchone()[0]
         nd = con.execute("SELECT COUNT(*) FROM works WHERE doc IS NOT NULL").fetchone()[0]
+        nc = con.execute("SELECT COUNT(*) FROM works WHERE card IS NOT NULL").fetchone()[0]
         na = con.execute("SELECT COUNT(DISTINCT author||author_yomi) FROM works").fetchone()[0]
     finally:
         con.close()
-    return {'works': n, 'authors': na, 'documents': nd}
+    return {'works': n, 'authors': na, 'documents': nd, 'cards': nc}

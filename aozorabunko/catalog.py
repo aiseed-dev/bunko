@@ -58,6 +58,19 @@ class Work:
         image_base = self.mirror_url.rsplit('/', 1)[0] + '/'
         return parse(self.text(), image_base=image_base)
 
+    def card(self) -> dict:
+        """図書カードの詳細メタデータ（底本・入力者・生没年・ファイル一覧等）。
+
+        カタログCSVに無い詳細を cardNNNN.html から構造化して返す（CC BY 4.0）。
+        取得はミラー経由・キャッシュ必須（二度目からオフライン）。
+        """
+        from . import card as card_mod
+        m = _AOZORA_URL_RE.match(self.card_url)
+        url = MIRROR + m.group(1) if m else self.card_url
+        cache = self._cache_dir / url.rsplit('/', 1)[-1]
+        data = _fetch(url, cache)
+        return card_mod.parse_card(card_mod.decode_card(data))
+
 
 class Library:
     """青空文庫の全作品カタログ。
@@ -144,11 +157,12 @@ class Library:
         return corpus.to_parquet(rows, path)
 
     def build_sqlite(self, path: str, works: list[Work] | None = None,
-                     documents: bool = False, limit: int | None = None) -> str:
-        """図書カード・書架情報を SQLite に。documents=True で本文JSONも埋める。
+                     documents: bool = False, cards: bool = False,
+                     limit: int | None = None) -> str:
+        """書架情報を SQLite に。documents/cards=True で本文・図書カードJSONも埋める。
 
-        メタデータは即（カタログCSVから）。本文（doc列）は重いので既定は入れない。
-        依存は標準ライブラリ sqlite3 のみ。
+        メタデータは即（カタログCSVから）。doc/card 列は取得を伴うので既定は入れない。
+        依存は標準ライブラリ sqlite3 のみ。取得は必ずキャッシュ経由。
         """
         from . import db
         targets = list(works if works is not None else self.works)
@@ -163,6 +177,14 @@ class Library:
                 except Exception:
                     continue
             db.store_documents(path, items)
+        if cards:
+            items = []
+            for w in targets:
+                try:
+                    items.append((w.work_id, w.card()))
+                except Exception:
+                    continue
+            db.store_cards(path, items)
         return path
 
     def index(self, works: list[Work] | None = None) -> list[dict]:

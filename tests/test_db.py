@@ -13,7 +13,7 @@ def test_build_search_authors(tmp_path):
              _w('2', '羅生門', 'らしょうもん', '芥川龍之介', 'あくたがわりゅうのすけ')]
     db.build_catalog(works, path)
     st = db.stats(path)
-    assert st == {'works': 2, 'authors': 2, 'documents': 0}
+    assert st == {'works': 2, 'authors': 2, 'documents': 0, 'cards': 0}
     # メタ検索
     hits = db.search(path, '芥川')
     assert hits and hits[0]['title'] == '羅生門' and hits[0]['row'] == 'あ'
