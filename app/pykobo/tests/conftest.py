@@ -22,12 +22,17 @@ _MEROSU_TEXT_URL = (
 
 @pytest.fixture(autouse=True)
 def _block_network(monkeypatch):
-    """urlopen を遮断。テスト中に外へ取りに行ったら即失敗させる。"""
-    def _forbidden(*args, **kwargs):  # pragma: no cover - 呼ばれたら失敗
+    """外部へのurlopenを遮断（オフライン原則）。localhost宛のテスト用サーバは許可。"""
+    real_urlopen = urllib.request.urlopen
+
+    def _guarded(url, *args, **kwargs):
+        target = url.full_url if hasattr(url, "full_url") else str(url)
+        if "127.0.0.1" in target or "localhost" in target:
+            return real_urlopen(url, *args, **kwargs)
         raise AssertionError(
-            "テストがネットワークにアクセスしようとした（オフライン原則違反）"
+            "テストが外部ネットワークにアクセスしようとした（オフライン原則違反）"
         )
-    monkeypatch.setattr(urllib.request, "urlopen", _forbidden)
+    monkeypatch.setattr(urllib.request, "urlopen", _guarded)
 
 
 @pytest.fixture

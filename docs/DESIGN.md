@@ -131,6 +131,21 @@ works(work_id PK, title, title_yomi, author, author_yomi,
   （flutter_svg_cjk_friendly の縦書き知見を流用）。**外字は普通のテキスト描画**（それがこの設計の成果）。
 - プロトタイプの意匠・挙動は examples の2つのビューア（書架・縦書き読書）が仕様を兼ねる。
 
+### 6.15 重作業ノード（ローカルAIマシン ── 例: MS-S1 MAX）
+
+大容量統合メモリのAIミニPC（Ryzen AI Max+ 395 / 128GB級）を、工房の**重作業ノード**として使う。
+読者アプリの「サーバ不要」原則はそのまま ── これは**生成時だけ**動く自分の機械。
+
+1. **朗読パック量産**: ローカルニューラルTTS（Kokoro / Style-Bert-VITS2 等）を
+   OpenAI互換サーバ（Kokoro-FastAPI 等）で立て、`pybunko.audio --engine openai
+   --base-url http://<node>:8880/v1` で接続。クラウド（edge-tts）依存が消え、
+   代表作のバッチ生成が一晩で回る
+2. **ローカルLLM司書（RAG）**: Ollama/llama.cpp の OpenAI互換APIに、コーパス
+   （SQLite/JSONL/Parquet）検索を組み合わせて「紹介・推薦・質問応答」を手元で
+   （HANDOFF当初のロードマップ項目）
+3. **埋め込み索引の事前計算**: 全作品の意味検索インデックスを資産として生成し、
+   書架の「意味で探す」へ
+
 ### 6.2 Flet 工作員アプリ（app/pykobo ── 青空工房）
 
 - **役割**: 読者向けではなく**工作員（入力・校正・保守）向け**。Pythonパイプラインを直接呼ぶ。

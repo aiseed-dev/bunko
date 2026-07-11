@@ -245,6 +245,9 @@ python -m pybunko.audio 走れメロス.zip -o out/merosu
 # → out/merosu.opus（音声・モノラルOpus 32k）
 # → out/merosu.audiobook.json（段落タイミング manifest）
 python -m pybunko.audio 作品.zip -o out/x --engine voicevox --voice 3   # VOICEVOX起動時
+# ローカルAIマシン（例: MS-S1 MAX）でOpenAI互換TTSサーバ（Kokoro-FastAPI等）を立てた場合:
+python -m pybunko.audio 作品.zip -o out/x --engine openai \
+    --base-url http://ms-s1:8880/v1 --voice jf_alpha
 ```
 
 manifest 形式（アプリの段落ハイライト同期・目次→音声シークに使う）:

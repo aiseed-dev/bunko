@@ -63,3 +63,50 @@ def test_build_audiobook_limit(tmp_path):
     doc = parse("題\n著\n\n" + "\n".join(f"段落{i}。" for i in range(10)) + "\n")
     m = build_audiobook(doc, str(tmp_path / "b"), SilenceEngine(0.2), limit=4)
     assert len(m['paras']) == 4
+
+
+def test_openai_speech_engine_against_fake_server(tmp_path):
+    """OpenAI互換 /v1/audio/speech（MS-S1 MAX等のローカルTTSサーバ想定）に
+    正しいリクエストを送り、返った音声を保存できる。偽サーバで検証。"""
+    import http.server
+    import threading
+
+    from pybunko.audio import OpenAiSpeechEngine
+
+    # 0.2秒の無音WAVを「サーバの返答」として用意
+    wav = tmp_path / "resp.wav"
+    subprocess.run(['ffmpeg', '-y', '-v', 'error', '-f', 'lavfi',
+                    '-i', 'anullsrc=r=24000:cl=mono', '-t', '0.2', str(wav)],
+                   check=True)
+    payload = wav.read_bytes()
+    seen = {}
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_POST(self):
+            import json as _json
+            body = self.rfile.read(int(self.headers['Content-Length']))
+            seen['path'] = self.path
+            seen['body'] = _json.loads(body)
+            seen['auth'] = self.headers.get('Authorization')
+            self.send_response(200)
+            self.send_header('Content-Type', 'audio/wav')
+            self.end_headers()
+            self.wfile.write(payload)
+
+        def log_message(self, *a):
+            pass
+
+    srv = http.server.HTTPServer(('127.0.0.1', 0), Handler)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        base = f'http://127.0.0.1:{srv.server_port}/v1'
+        eng = OpenAiSpeechEngine(base, voice='jf_alpha', api_key='k')
+        out = tmp_path / "out.wav"
+        eng.synth('メロスは激怒した。', str(out))
+        assert out.read_bytes() == payload
+        assert seen['path'] == '/v1/audio/speech'
+        assert seen['body']['input'] == 'メロスは激怒した。'
+        assert seen['body']['voice'] == 'jf_alpha'
+        assert seen['auth'] == 'Bearer k'
+    finally:
+        srv.shutdown()

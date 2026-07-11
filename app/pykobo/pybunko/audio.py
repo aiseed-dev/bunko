@@ -64,6 +64,40 @@ class VoicevoxEngine:
         Path(out_path).write_bytes(wav)
 
 
+class OpenAiSpeechEngine:
+    """OpenAI互換 /v1/audio/speech を話すローカルTTSサーバ用（標準ライブラリのみ）。
+
+    想定: 自宅のAIマシン（例: MS-S1 MAX）で Kokoro-FastAPI / openedai-speech 等を
+    起動し、その base_url を指す。生成もローカルで完結し、クラウド依存が消える。
+
+        engine = OpenAiSpeechEngine('http://ms-s1:8880/v1', voice='jf_alpha')
+    """
+    name = 'openai-speech'
+    ext = 'wav'
+
+    def __init__(self, base_url: str, voice: str = 'alloy',
+                 model: str = 'tts-1', response_format: str = 'wav',
+                 api_key: str | None = None):
+        self.base_url = base_url.rstrip('/')
+        self.voice = voice
+        self.model = model
+        self.ext = response_format
+        self.api_key = api_key
+
+    def synth(self, text: str, out_path: str) -> None:
+        body = json.dumps({
+            'model': self.model, 'input': text, 'voice': self.voice,
+            'response_format': self.ext,
+        }).encode('utf-8')
+        headers = {'Content-Type': 'application/json'}
+        if self.api_key:
+            headers['Authorization'] = f'Bearer {self.api_key}'
+        req = urllib.request.Request(f'{self.base_url}/audio/speech',
+                                     data=body, headers=headers, method='POST')
+        data = urllib.request.urlopen(req, timeout=300).read()
+        Path(out_path).write_bytes(data)
+
+
 class EdgeEngine:
     """edge-tts（ニューラル日本語音声・生成時のみネットワーク使用）。"""
     name = 'edge-tts'
@@ -175,9 +209,11 @@ def main(argv=None) -> int:
     ap.add_argument('input', help='注記付きテキスト（.txt / .zip / URL）')
     ap.add_argument('-o', '--out', required=True,
                     help='出力ベース名（→ <out>.opus / <out>.audiobook.json）')
-    ap.add_argument('--engine', choices=['edge', 'voicevox'], default='edge')
+    ap.add_argument('--engine', choices=['edge', 'voicevox', 'openai'], default='edge')
     ap.add_argument('--voice', default=None,
-                    help='edge: ja-JP-NanamiNeural 等 / voicevox: speaker番号')
+                    help='edge: ja-JP-NanamiNeural 等 / voicevox: speaker番号 / openai: サーバ側の音声名')
+    ap.add_argument('--base-url', default='http://127.0.0.1:8880/v1',
+                    help='openaiエンジンのエンドポイント（MS-S1 MAX等のローカルTTSサーバ）')
     ap.add_argument('--limit', type=int, default=None,
                     help='先頭N段落のみ（試作用）')
     a = ap.parse_args(argv)
@@ -185,6 +221,8 @@ def main(argv=None) -> int:
     doc = parse(read_text(a.input))
     if a.engine == 'voicevox':
         engine = VoicevoxEngine(speaker=int(a.voice) if a.voice else 3)
+    elif a.engine == 'openai':
+        engine = OpenAiSpeechEngine(a.base_url, voice=a.voice or 'alloy')
     else:
         engine = EdgeEngine(voice=a.voice or 'ja-JP-NanamiNeural')
 
