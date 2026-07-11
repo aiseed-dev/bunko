@@ -19,6 +19,9 @@ aozora_shinkan.py — 青空文庫リーダー「もうひとつの新館」
 """
 from __future__ import annotations
 
+import glob
+import os
+
 import flet as ft
 
 from aozorabunko import Library, Work, parse
@@ -30,6 +33,30 @@ from aozorabunko import Library, Work, parse
 Segment = tuple[str, str | None]
 
 _LIB = Library(cache_dir='aozora_cache')
+
+
+# 外字はUnicodeの実文字として表示する（画像も注記も使わない）。
+# aozorabunko が第3・第4水準の外字をUnicodeに解決済みなので、
+# JIS X 0213を持つフォントを1つ指定すれば全部そのまま描ける ── これがこのアプリの肝。
+_FONT_CANDIDATES = [
+    '/usr/share/fonts/opentype/ipaexfont-mincho/ipaexm.ttf',   # IPAex明朝（JIS X 0213）
+    '/usr/share/fonts/opentype/ipafont-mincho/ipam.ttf',
+    '/System/Library/Fonts/ヒラギノ明朝 ProN.ttc',
+]
+
+
+def find_cjk_font() -> str | None:
+    """JIS X 0213（第3・第4水準）を持つフォントを探す。"""
+    for p in _FONT_CANDIDATES:
+        if os.path.exists(p):
+            return p
+    for pat in ['/usr/share/fonts/**/ipaexm.ttf',
+                '/usr/share/fonts/**/NotoSerifCJK*jp*.otf',
+                '/usr/share/fonts/**/NotoSerifCJK*.ttc']:
+        hits = sorted(glob.glob(pat, recursive=True))
+        if hits:
+            return hits[0]
+    return None
 
 
 def load_catalog() -> list[Work]:
@@ -88,6 +115,14 @@ def result_tile(work: Work, on_open) -> ft.Control:
 def main(page: ft.Page):
     page.title = '青空文庫リーダー ── サーバー不要の証明'
     page.padding = 16
+
+    # JIS X 0213対応フォントを1つ指定すれば、外字も実Unicode文字としてそのまま表示できる。
+    # （用意する場合は `python -m pyaozora.fonts assets/aozora-gaiji.woff2` で
+    #  全外字4,330字ぶんの軽量サブセット≈2.8MBを作って同梱してもよい）
+    _font = find_cjk_font()
+    if _font:
+        page.fonts = {'AozoraSerif': _font}
+        page.theme = ft.Theme(font_family='AozoraSerif')
     font_size = 18.0
     works: list[Work] = []
     current: list[list[Segment]] = []
