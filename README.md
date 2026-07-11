@@ -33,14 +33,13 @@ bunko/
 │       ├── assets -> ../../assets   # symlink（共有資産を参照）
 │       └── tool/build_assets.py     # 共有資産の生成（Python・aozorabunko使用）
 ├── packages/
-│   └── pyaozora/             # Python パッケージ
-│       ├── converter.py      #   注記テキスト→公式XHTML（ゴールデン検証用・凍結維持）
-│       └── fonts.py          #   外字フォント資産（gaiji_charset / build_gaiji_font / サブセット埋め込み）
+│   ├── aozorabunko/          # 中核ライブラリ: 正本→Unicode Document→JSON/SQLite/EPUB/…
+│   └── pyaozora/             # 外字フォント資産・公式XHTML検証（凍結維持）
 ├── assets/                   # 共有データ資産（aozora.db・IPAex明朝・jis2ucs.json・cp932.bin）
 └── docs/                     # 設計書（DESIGN.md）・マニュアル（MANUAL.md）の正本
 ```
 
-`pip install -e ./packages/pyaozora` で従来どおり `import pyaozora` できます（工房=aozora_kobo が使用）。
+`pip install -e './packages/aozorabunko[epub]' -e ./packages/pyaozora` で従来どおり import できます（工房=aozora_kobo が使用）。
 全体設計は [docs/DESIGN.md](docs/DESIGN.md)、パイプラインの使い方・拡張の仕方は [docs/MANUAL.md](docs/MANUAL.md)。
 
 ## アーキテクチャ

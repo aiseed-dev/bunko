@@ -19,7 +19,12 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 PKG_DATA = HERE.parent / "aozorabunko" / "data"
-DEFAULT_YML = HERE.parent.parent / "_ref" / "aozora2html" / "yml"
+_CANDIDATE_REFS = [
+    HERE.parent.parent / "_ref" / "aozora2html" / "yml",              # 旧: aozora/ 直下
+    HERE.parent.parent.parent.parent / "aozora" / "_ref" / "aozora2html" / "yml",  # bunko/packages から
+    Path("/home/dev/dev/aozora/_ref/aozora2html/yml"),
+]
+DEFAULT_YML = next((c for c in _CANDIDATE_REFS if c.exists()), _CANDIDATE_REFS[0])
 
 # 例:  :1-06-75: "&#x2603;"
 _LINE = re.compile(r'^:(?P<key>[12]-\d{2}-\d{2}):\s*"(?P<val>.*)"\s*$')
