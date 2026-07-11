@@ -58,9 +58,24 @@ python aozora_tts.py                # 変換デモ
 
 | ファイル | 役割 |
 |---|---|
-| `aozora_shinkan.py` | 変換プレビュー（UIのみ。検索・パースは `aozorabunko` に委譲） |
+| `aozora_kobo.py` | **青空工房** ── 統合作業台（検査・資産づくり・公式HTML検証の3タブ） |
+| `aozora_shinkan.py` | 変換プレビュー（軽量リーダー。検索・パースは `aozorabunko` に委譲） |
 | `aozora2epub.py` | 注記付きテキスト → EPUB3 変換（`aozorabunko.parse` + `to_epub`） |
 | `aozora_tts.py` | 読み上げテキスト生成・TTSエンジン接続（ルビ＝読みデータ） |
+
+### 青空工房（aozora_kobo.py）
+
+```bash
+flet run aozora_kobo.py                 # デスクトップ
+KOBO_PORT=8788 python aozora_kobo.py    # Webサーバとして（ブラウザで開く）
+```
+
+- **検査** … 作品を検索→点検。未対応注記（パーサが除去した［＃…］）と未解決外字（〓）を
+  件数つきで列挙。統計（段落・ルビ・装飾・見出し・挿絵・外字）とプレビュー。
+- **資産** … 読者アプリ（bunko）同梱用のデータ資産をGUIで生成:
+  書架DB（SQLite・本文込みも可）／目次JSON／外字サブセットフォント（WOFF2）。
+- **検証** … pyaozora の公式XHTML再現を、ミラーの正解HTMLと突き合わせ
+  （類似度％と相違ブロックのdiff表示。図書カードのファイル一覧からXHTML名を自動特定）。
 
 技術メモ:
 
@@ -71,9 +86,9 @@ python aozora_tts.py                # 変換デモ
 ## ロードマップ（工作員ツールとして）
 
 - [x] 注記対応の拡充（外字のUnicode解決・字下げ・傍点 → `aozorabunko` 側で対応済み）
-- [ ] 未対応注記・未解決外字（〓）の検出パネル
-- [ ] データ資産づくりのGUI（build_sqlite / フォント生成 / 図書カード取り込み）
-- [ ] pyaozora ゴールデン検証の diff 表示
+- [x] 未対応注記・未解決外字（〓）の検出パネル（青空工房・検査タブ）
+- [x] データ資産づくりのGUI（青空工房・資産タブ）
+- [x] pyaozora ゴールデン検証の diff 表示（青空工房・検証タブ）
 - [ ] 読み上げの統合（段落ハイライト同期）
 
 縦書き表示・読者向けUIは Flutter 読者アプリ側で（aozorabunko/DESIGN.md 参照）。
