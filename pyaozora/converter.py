@@ -192,9 +192,42 @@ def _bibliographical(colophon: str, gaiji: str = 'image') -> str:
             + body + '<br />\r\n<br />\r\n</div>\r\n')
 
 
+_GAIJI_FONT_NAMES = ('"IPAmjMincho","Hiragino Mincho ProN",'
+                     '"Noto Serif CJK JP","BIZ UDMincho",serif')
+
+
+def _gaiji_chars(text: str) -> set[str]:
+    """本文中の外字が font モードで解決される実Unicode文字の集合。"""
+    from aozorabunko.gaiji import resolve_note_body
+    chars: set[str] = set()
+    for m in _GAIJI_NOTE.finditer(text):
+        ch = resolve_note_body(m.group('body'))
+        if ch:
+            chars.update(ch)
+    return chars
+
+
+def _gaiji_style(text: str, embed_font) -> str:
+    """font モードの head 用 <style>。embed_font 指定時はサブセットを埋め込む。"""
+    if embed_font:
+        from . import fonts
+        chars = _gaiji_chars(text)
+        path = embed_font if isinstance(embed_font, str) else fonts.find_source_font()
+        if path and chars:
+            woff2 = fonts.subset_woff2(path, chars)
+            face = fonts.font_face_css(woff2, fallback=_GAIJI_FONT_NAMES)
+            return '\t<style type="text/css">\r\n\t' + face + '\t</style>\r\n'
+    return ('\t<style type="text/css">\r\n\t.gaiji { font-family: '
+            + _GAIJI_FONT_NAMES + '; }\r\n\t</style>\r\n')
+
+
 def to_official_html(text: str, *, css: str = '../../aozora.css',
-                     gaiji: str = 'image') -> str:
-    """注記付きテキスト全文 → 公式XHTML（文字列, CRLF）。"""
+                     gaiji: str = 'image', embed_font=None) -> str:
+    """注記付きテキスト全文 → 公式XHTML（文字列, CRLF）。
+
+    gaiji='font' で外字を実Unicode文字にし、embed_font でそのグリフを
+    サブセット埋め込み（True=元フォント自動探索 / パス文字列=そのフォント）。
+    """
     text = text.replace('\r\n', '\n')
     lines = text.split('\n')
     # 公式は先頭行をそのまま使う（末尾スペース等も保持）ので strip しない
@@ -205,7 +238,8 @@ def to_official_html(text: str, *, css: str = '../../aozora.css',
     head = _HEAD.format(css=css, title=_esc(title), author=_esc(author),
                         title_full=_esc(f'{author} {title}'.strip()))
     if gaiji == 'font':
-        head = head.replace('</head>\r\n', '\t<style type="text/css">\r\n\t.gaiji { font-family: "IPAmjMincho","Hiragino Mincho ProN","Noto Serif CJK JP","BIZ UDMincho",serif; }\r\n\t</style>\r\n' + '</head>\r\n')
+        head = head.replace('</head>\r\n',
+                            _gaiji_style(text, embed_font) + '</head>\r\n')
     metadata = (f'<h1 class="title">{_esc(title)}</h1>\r\n'
                 f'<h2 class="author">{_esc(author)}</h2>\r\n'
                 '<br />\r\n<br />\r\n</div>\r\n')

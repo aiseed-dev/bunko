@@ -50,8 +50,9 @@ pytest
 ## 外字モード（画像 or フォント）
 
 ```python
-to_official_html(text)                  # 既定 = image：公式と同じ <img class="gaiji">
-to_official_html(text, gaiji='font')    # font：実Unicode文字 <span class="gaiji">
+to_official_html(text)                              # 既定 = image：公式と同じ <img class="gaiji">
+to_official_html(text, gaiji='font')                # font：実Unicode文字 <span class="gaiji">
+to_official_html(text, gaiji='font', embed_font=True)  # font＋サブセット埋め込み（自己完結）
 ```
 
 青空文庫が2000年に外字を**画像**にしたのは、当時のフォントが第3・第4水準漢字を
@@ -62,8 +63,19 @@ to_official_html(text, gaiji='font')    # font：実Unicode文字 <span class="g
   フォント（IPAmj明朝・Noto Serif CJK JP 等）を指定。**選択・検索・読み上げが効き、
   11,000枚のPNG依存も消える**。例: 山月記は画像22枚 → 実文字22文字（`虢`『傪』…）。
 
-Unicode化できない外字（非0213の合成説明）だけは注記スパンにフォールバックします
-（この末端はサブセット埋め込みフォント／IVSで解消するのが次の展望）。
+Unicode化できない外字（非0213の合成説明）だけは注記スパンにフォールバックします。
+
+### サブセット埋め込み（`embed_font=True`, 自己完結）
+
+`embed_font=True` で、その作品で使う外字のグリフ**だけ**を元フォント（IPAex明朝等）から
+切り出して WOFF2 にし、`@font-face` の `data:` URI として head に埋め込みます。閲覧側に
+JIS X 0213対応フォントが無くても確実に表示され、しかも埋め込みは数十字ぶんで済みます。
+
+例: 山月記は外字が延べ22箇所でも**ユニークは4字**（傪嘷虢軺）→ 埋め込み WOFF2 は約**4.9KB**、
+ページ全体で約35KB。`.gaiji` スパンにだけ適用するので本文は通常フォントのまま。
+
+依存は optional の `[font]`（fonttools + brotli）。`embed_font='/path/font.ttf'` で
+元フォントを明示指定、`True` なら IPAex明朝／Noto CJK 等を自動探索します。
 
 ## ライセンス
 

@@ -12,5 +12,9 @@ license = { text = "MIT" }
 keywords = ["aozora", "aozorabunko", "japanese", "xhtml", "converter"]
 dependencies = ["aozorabunko"]
 
+[project.optional-dependencies]
+# 外字グリフのサブセット埋め込み（gaiji='font', embed_font=True）
+font = ["fonttools>=4.40", "brotli"]
+
 [tool.setuptools]
 packages = ["pyaozora"]
