@@ -7,7 +7,7 @@
 ```
 bunko/
 ├── app/bunko/        # Flutter 読者アプリ（lib/ web/ linux/ test/）
-├── app/kobo/         # 青空工房 ── Flet 工作員ツール（検査・資産・検証）
+├── app/pykobo/         # 青空工房 ── Flet 工作員ツール（検査・資産・検証）
 │   └── assets -> ../../assets   # symlink（Flutterはリポ外パスを参照できないため）
 ├── packages/
 │   └── pybunko/       # Python中核（PyPI名 pybunko）: 正本→Unicode Document→JSON/SQLite/EPUB/…（88テスト）
@@ -75,8 +75,8 @@ bunko/
 
 | リポジトリ | 層 | 責務 | 状態 |
 |---|---|---|---|
-| bunko/**app/kobo/pybunko** | 変換・データ | 正本→Document(Unicode)→JSON/SQLite/EPUB/…。カタログ・図書カード・official・fonts。**中核**（PyPI個別登録はしない） | 98テスト |
-| **bunko** | 読者＋資産＋docs | **モノレポ**: app/bunko=Flutter読者アプリ（dev.aiseed.bunko）／app/kobo/pybunko=Python側一体（中核＋official＋fonts・PyPI個別登録なし）／assets/=共有データ資産／app/kobo=Flet工作員ツール「青空工房」／tools/=開発スクリプト／docs/=正本 | 13＋98テスト |
+| bunko/**app/pykobo/pybunko** | 変換・データ | 正本→Document(Unicode)→JSON/SQLite/EPUB/…。カタログ・図書カード・official・fonts。**中核**（PyPI個別登録はしない） | 98テスト |
+| **bunko** | 読者＋資産＋docs | **モノレポ**: app/bunko=Flutter読者アプリ（dev.aiseed.bunko）／app/pykobo/pybunko=Python側一体（中核＋official＋fonts・PyPI個別登録なし）／assets/=共有データ資産／app/pykobo=Flet工作員ツール「青空工房」／tools/=開発スクリプト／docs/=正本 | 13＋98テスト |
 | aiseed-dev/washi-md | 組版 | Markdown→縦書き/原稿用紙/PDF（[washi]で委譲） | 23テスト |
 | aiseed-dev/mdit-py-cjk-friendly | 組版基盤 | CJK対応 markdown-it-py（ルビ・傍点bouten） | 52テスト |
 | aiseed-dev/flutter_svg_cjk_friendly | Flutter補助 | SVGのCJK font/縦書き修正（Flutterアプリで必要時） | — |

@@ -41,7 +41,7 @@ bunko/
 └── docs/                     # 設計書（DESIGN.md）・マニュアル（MANUAL.md）の正本
 ```
 
-`pip install -e './app/kobo[epub]'` で `import pybunko`（ローカル専用・PyPIには個別登録しない）。
+`pip install -e './app/pykobo[epub]'` で `import pybunko`（ローカル専用・PyPIには個別登録しない）。
 全体設計は [docs/DESIGN.md](docs/DESIGN.md)、パイプラインの使い方・拡張の仕方は [docs/MANUAL.md](docs/MANUAL.md)。
 
 ## アーキテクチャ

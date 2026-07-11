@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-PKG_DATA = HERE.parent / "app" / "kobo" / "pybunko" / "data"
+PKG_DATA = HERE.parent / "app" / "pykobo" / "pybunko" / "data"
 _CANDIDATE_REFS = [
     HERE.parent / "_ref" / "aozora2html" / "yml",                     # bunko/_ref（将来）
     HERE.parent.parent / "aozora" / "_ref" / "aozora2html" / "yml",   # dev/aozora/_ref（現在地）
