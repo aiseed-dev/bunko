@@ -124,11 +124,14 @@ class Document:
         return to_pdf(self, path, vertical=vertical, **kwargs)
 
 
-def parse(text: str, image_base: str = '') -> Document:
+def parse(text: str, image_base: str = '',
+          keep_blank_lines: bool = False) -> Document:
     """注記付きテキスト全文 → Document
 
     image_base: 挿絵ファイルを解決するベースURL（例 ミラーの files/ ディレクトリ）。
                 指定時は 挿絵の src を image_base + ファイル名 にする。
+    keep_blank_lines: True で空行を空段落（segments=[]）として保持する。
+                公式HTMLの <br /> 忠実再現（pyaozora）用。既定は従来どおり空行を捨てる。
     """
     text = text.replace('\r\n', '\n')
     lines = text.split('\n')
@@ -144,6 +147,8 @@ def parse(text: str, image_base: str = '') -> Document:
     layout_stack = []    # 字下げ・地付き・字詰めブロックの入れ子
     for raw in body.split('\n'):
         if not raw.strip():
+            if keep_blank_lines and pending is None:
+                paragraphs.append(Paragraph(segments=[]))  # 空行マーカー
             continue
         line = gaiji.resolve(raw)   # 外字を実文字へ（未対応注記の除去より前）
         line = accent.resolve(line)  # 欧文アクセント分解 〔e'〕→é

@@ -46,3 +46,15 @@ def test_to_epub(merosu_doc, tmp_path):
     out = tmp_path / "merosu.epub"
     merosu_doc.to_epub(str(out))
     assert out.exists() and out.stat().st_size > 0
+
+
+def test_keep_blank_lines():
+    """keep_blank_lines=True で空行が空段落として保持される（pyaozora向け）。"""
+    from aozorabunko import parse
+    src = "題\n著\n一行目\n\n\n二行目\n"
+    # 既定は空行を捨てる
+    assert [p.plain for p in parse(src).paragraphs] == ["一行目", "二行目"]
+    # keep=True: 一行目と二行目の間に空段落（segments==[]）が2つ挟まる
+    plains = [p.plain for p in parse(src, keep_blank_lines=True).paragraphs]
+    i, j = plains.index("一行目"), plains.index("二行目")
+    assert plains[i + 1:j] == ["", ""]
