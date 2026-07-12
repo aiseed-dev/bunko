@@ -79,6 +79,7 @@ class _ShelfPageState extends State<ShelfPage> {
   ShelfMode _mode = ShelfMode.author;
   String _row = 'あ';
   (String, List<String>)? _kana; // 選択中の個別かな（null=行全体）
+  AuthorGroup? _selAuthor; // 作家別: 選択中の作家（広い画面の右パネル用）
   String _ndcTop = '9'; // 分野別: 選択中の類（文学が既定）
   String? _ndcSub; // 分野別: 選択中の3桁分類（null=類全体）
   String _query = '';
@@ -276,13 +277,32 @@ class _ShelfPageState extends State<ShelfPage> {
         ],
         const Divider(height: 8),
         Expanded(
-          child: _query.isNotEmpty
-              ? _searchList()
-              : switch (_mode) {
-                  ShelfMode.author => _authorList(),
-                  ShelfMode.title => _titleList(),
-                  ShelfMode.ndc => _ndcList(),
-                },
+          child: LayoutBuilder(builder: (context, box) {
+            final body = _query.isNotEmpty
+                ? _searchList()
+                : switch (_mode) {
+                    ShelfMode.author => _authorList(),
+                    ShelfMode.title => _titleList(),
+                    ShelfMode.ndc => _ndcList(),
+                  };
+            // デスクトップ幅の作家別: 右に作家の紹介パネル
+            final wide = box.maxWidth >= 980;
+            if (!wide || _mode != ShelfMode.author || _query.isNotEmpty) {
+              return body;
+            }
+            return Row(crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(child: body),
+                  const VerticalDivider(width: 1, color: Sumi.rule),
+                  SizedBox(
+                    width: 340,
+                    child: AuthorPanel(
+                        author: _selAuthor,
+                        db: widget.db,
+                        fetcher: widget.fetcher),
+                  ),
+                ]);
+          }),
         ),
       ]),
     );
@@ -314,6 +334,9 @@ class _ShelfPageState extends State<ShelfPage> {
         final a = authors[i];
         return ExpansionTile(
           shape: const Border(),
+          onExpansionChanged: (open) {
+            if (open) setState(() => _selAuthor = a);
+          },
           title: Row(children: [
             Flexible(
                 child: Text(a.author,
@@ -400,6 +423,136 @@ class _ShelfPageState extends State<ShelfPage> {
       onTap: () => Navigator.of(context).push(MaterialPageRoute(
           builder: (_) =>
               CardPage(work: w, db: widget.db, fetcher: widget.fetcher))),
+    );
+  }
+}
+
+
+/// 作家の紹介パネル（デスクトップ幅の作家別で右側に出す）。
+/// 紹介文は図書カードの「作家」欄（青空文庫の作家データ・CC BY）から。
+/// キャッシュ済みカードを優先し、無ければ代表作1件ぶんをミラーから取得。
+class AuthorPanel extends StatefulWidget {
+  final AuthorGroup? author;
+  final BunkoDb db;
+  final Fetcher fetcher;
+  const AuthorPanel(
+      {super.key, required this.author, required this.db,
+      required this.fetcher});
+
+  @override
+  State<AuthorPanel> createState() => _AuthorPanelState();
+}
+
+class _AuthorPanelState extends State<AuthorPanel> {
+  static final Map<String, Map<String, dynamic>?> _cache = {};
+  Future<Map<String, dynamic>?>? _future;
+
+  @override
+  void didUpdateWidget(covariant AuthorPanel old) {
+    super.didUpdateWidget(old);
+    if (old.author?.author != widget.author?.author) _load();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  void _load() {
+    final a = widget.author;
+    _future = a == null ? null : _authorInfo(a);
+  }
+
+  Future<Map<String, dynamic>?> _authorInfo(AuthorGroup a) async {
+    if (_cache.containsKey(a.author)) return _cache[a.author];
+    final works = widget.db.byAuthor(a.author, a.authorYomi);
+    Map<String, dynamic>? card;
+    for (final w in works) {
+      card = widget.db.loadCard(w.workId);
+      if (card != null) break;
+    }
+    if (card == null && works.isNotEmpty) {
+      card = await widget.fetcher.fetchCard(works.first);
+    }
+    String norm(String s) => s.replaceAll(RegExp(r'[\s　]'), '');
+    Map<String, dynamic>? info;
+    for (final x in ((card?['authors'] as List?) ?? const []).cast<Map>()) {
+      if (norm('${x['作家名'] ?? ''}') == norm(a.author)) {
+        info = x.cast<String, dynamic>();
+        break;
+      }
+    }
+    _cache[a.author] = info;
+    return info;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final a = widget.author;
+    if (a == null) {
+      return const Center(
+          child: Padding(
+        padding: EdgeInsets.all(24),
+        child: Text('作家を選ぶと、ここに紹介が出ます',
+            style: TextStyle(color: Sumi.muted, fontSize: 13)),
+      ));
+    }
+    return Container(
+      color: Sumi.paperHi,
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('作家',
+            style: TextStyle(
+                fontSize: 12, color: Sumi.shu, letterSpacing: 6,
+                fontWeight: FontWeight.w600)),
+        const SizedBox(height: 10),
+        Text(a.author,
+            style: const TextStyle(
+                fontSize: 22, fontWeight: FontWeight.w600, color: Sumi.ink)),
+        Text(a.authorYomi,
+            style: const TextStyle(fontSize: 12, color: Sumi.muted)),
+        const SizedBox(height: 6),
+        Text('公開中 ${a.count} 作品',
+            style: const TextStyle(fontSize: 12, color: Sumi.inkSoft)),
+        const Divider(height: 24, color: Sumi.rule),
+        Expanded(
+          child: FutureBuilder<Map<String, dynamic>?>(
+            future: _future,
+            builder: (context, snap) {
+              if (snap.connectionState != ConnectionState.done) {
+                return const Center(
+                    child: SizedBox(
+                        width: 20, height: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Sumi.shu)));
+              }
+              final info = snap.data;
+              if (info == null) {
+                return const Text('紹介文はありません（図書カードを開くと取得されます）',
+                    style: TextStyle(fontSize: 12, color: Sumi.muted));
+              }
+              final born = '${info['生年'] ?? ''}';
+              final died = '${info['没年'] ?? ''}';
+              final about = '${info['人物について'] ?? ''}';
+              return ListView(children: [
+                if (born.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Text('$born 〜 $died',
+                        style: const TextStyle(
+                            fontSize: 12.5, color: Sumi.inkSoft)),
+                  ),
+                Text(about.isEmpty ? '' : about,
+                    style: const TextStyle(
+                        fontSize: 13, height: 1.9, color: Sumi.ink)),
+              ]);
+            },
+          ),
+        ),
+        const Text('出典: 青空文庫の作家データ（CC BY）',
+            style: TextStyle(fontSize: 10, color: Sumi.muted)),
+      ]),
     );
   }
 }
