@@ -126,6 +126,7 @@ class WorkMeta {
   final String workId, title, titleYomi, author, authorYomi, row;
   final String cardUrl, textUrl;
   final String ndc; // NDC分類（'913'/'K933'/'756 914'。空=分類なし）
+  final bool readingCorpus; // NDL読みコーパス（人間の朗読由来の読みデータ）あり
   final bool copyrighted, hasDoc, hasCard;
 
   const WorkMeta({
@@ -138,6 +139,7 @@ class WorkMeta {
     required this.cardUrl,
     required this.textUrl,
     this.ndc = '',
+    this.readingCorpus = false,
     required this.copyrighted,
     required this.hasDoc,
     required this.hasCard,

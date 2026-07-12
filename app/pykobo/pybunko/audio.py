@@ -27,6 +27,7 @@
 from __future__ import annotations
 
 import json
+import pathlib
 import re
 import shutil
 import subprocess
@@ -178,11 +179,24 @@ def _duration(path: str) -> float:
     return float(out)
 
 
-def speech_paragraphs(doc: Document) -> list[tuple[int, str]]:
-    """読み上げ対象の (段落index, 読みテキスト) 列。空段落・挿絵はスキップ。"""
+def speech_paragraphs(doc: Document,
+                      readings: dict[str, str] | None = None
+                      ) -> list[tuple[int, str]]:
+    """読み上げ対象の (段落index, 読みテキスト) 列。空段落・挿絵はスキップ。
+
+    readings は NDL読みコーパス等の読み辞書（pybunko.ndl.parse_annotation）。
+    ルビの無い漢字部分にだけ適用する ── ルビがある箇所は Paragraph.reading
+    の段階でルビが採用済みなので、常にルビが優先される。
+    """
     out = []
     for i, p in enumerate(doc.paragraphs):
-        text = _STRIP_RE.sub('', p.reading).strip()
+        if readings:
+            from .ndl import apply_readings
+            text = ''.join(r if r else apply_readings(t, readings)
+                           for t, r in p.segments)
+        else:
+            text = p.reading
+        text = _STRIP_RE.sub('', text).strip()
         if text:
             out.append((i, text))
     return out
@@ -191,6 +205,7 @@ def speech_paragraphs(doc: Document) -> list[tuple[int, str]]:
 def build_audiobook(doc: Document, out_base: str, engine,
                     bitrate: str = '32k',
                     limit: int | None = None,
+                    readings: dict[str, str] | None = None,
                     progress=None) -> dict:
     """Document → 朗読パック（{out_base}.opus ＋ {out_base}.audiobook.json）。
 
@@ -198,7 +213,7 @@ def build_audiobook(doc: Document, out_base: str, engine,
     段落ハイライト同期・目次ジャンプ（音声側シーク）に使う。
     """
     _require_ffmpeg()
-    targets = speech_paragraphs(doc)
+    targets = speech_paragraphs(doc, readings=readings)
     if limit is not None:
         targets = targets[:limit]
     if not targets:
@@ -265,9 +280,17 @@ def main(argv=None) -> int:
                          'sbv2の既定ポートは5000）')
     ap.add_argument('--limit', type=int, default=None,
                     help='先頭N段落のみ（試作用）')
+    ap.add_argument('--ndl', default=None,
+                    help='NDL読みコーパスの注釈txt（ルビ無し漢字の読み辞書に）')
     a = ap.parse_args(argv)
 
     doc = parse(read_text(a.input))
+    readings = None
+    if a.ndl:
+        from .ndl import parse_annotation
+        readings = parse_annotation(
+            pathlib.Path(a.ndl).read_text(encoding='utf-8'))
+        print(f'NDL読み辞書: {len(readings)} 語')
     if a.engine == 'voicevox':
         engine = VoicevoxEngine(speaker=int(a.voice) if a.voice else 3)
     elif a.engine == 'openai':
@@ -282,7 +305,8 @@ def main(argv=None) -> int:
     def progress(done, total):
         print(f'\r合成中 {done}/{total} 段落', end='', flush=True)
 
-    m = build_audiobook(doc, a.out, engine, limit=a.limit, progress=progress)
+    m = build_audiobook(doc, a.out, engine, limit=a.limit,
+                        readings=readings, progress=progress)
     print(f"\n✓ {m['title']}: {m['audio']}（{m['total']:.0f}秒・{len(m['paras'])}段落）"
           f" / manifest={a.out}.audiobook.json")
     return 0

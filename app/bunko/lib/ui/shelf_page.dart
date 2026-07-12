@@ -386,9 +386,17 @@ class _ShelfPageState extends State<ShelfPage> {
               '${w.author}　${w.titleYomi}'
               '${showNdc && w.ndc.isNotEmpty ? '　NDC ${w.ndc}' : ''}',
               style: const TextStyle(fontSize: 12, color: Sumi.muted)),
-      trailing: w.hasDoc
-          ? const Icon(Icons.download_done, size: 16, color: Sumi.muted)
-          : null,
+      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+        if (w.readingCorpus)
+          const Tooltip(
+              message: '読みデータあり（NDL朗読コーパス）',
+              child:
+                  Icon(Icons.record_voice_over, size: 16, color: Sumi.muted)),
+        if (w.hasDoc) ...[
+          const SizedBox(width: 6),
+          const Icon(Icons.download_done, size: 16, color: Sumi.muted),
+        ],
+      ]),
       onTap: () => Navigator.of(context).push(MaterialPageRoute(
           builder: (_) =>
               CardPage(work: w, db: widget.db, fetcher: widget.fetcher))),

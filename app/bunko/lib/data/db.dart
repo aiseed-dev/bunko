@@ -31,6 +31,7 @@ class BunkoDb {
         row: (r['row'] as String?) ?? 'その他',
         cardUrl: (r['card_url'] as String?) ?? '',
         ndc: (r['ndc'] as String?) ?? '',
+        readingCorpus: ((r['reading_corpus'] as int?) ?? 0) != 0,
         textUrl: (r['text_url'] as String?) ?? '',
         copyrighted: (r['copyrighted'] as int) != 0,
         hasDoc: r['has_doc'] as int != 0,
@@ -38,7 +39,7 @@ class BunkoDb {
       );
 
   static const _cols = 'work_id,title,title_yomi,author,author_yomi,row,'
-      'card_url,text_url,copyrighted,ndc,'
+      'card_url,text_url,copyrighted,ndc,reading_corpus,'
       '(doc IS NOT NULL) AS has_doc,(card IS NOT NULL) AS has_card';
 
   /// 書架: 作家別の作品数（よみ順）。行タブ（row）と個別かな（initials）で絞り込み。

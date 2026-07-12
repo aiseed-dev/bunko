@@ -86,3 +86,8 @@ db.store_documents(dbp, docs)
 db.store_cards(dbp, cards)
 st = db.stats(dbp)
 print(f"aozora.db: {pathlib.Path(dbp).stat().st_size/1024/1024:.1f} MB  stats={st}  取得失敗={ng}")
+
+# 5) NDL読みコーパスのフラグ（reading_corpus 列） --------------------------
+from pybunko.ndl import mark_reading_corpus
+n = mark_reading_corpus(dbp)
+print(f"読みコーパスあり: {n} 作品（NDL hurigana-speech-corpus-aozora）")
