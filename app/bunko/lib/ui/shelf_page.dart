@@ -8,6 +8,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../data/db.dart';
+import 'reader_page.dart';
 import '../data/fetch.dart';
 import '../data/models.dart';
 import '../theme.dart';
@@ -65,6 +66,16 @@ String ndcSubLabel(String code) {
 }
 
 enum ShelfMode { author, title, ndc } // 作家別 / 作品別 / 分野別（公式の3軸）
+
+/// 作品を開く。デスクトップ幅は読書画面へ直行（図書カードは左サイドバー）、
+/// 狭い画面は従来どおり図書カードページを経由する。
+void openWork(BuildContext context, WorkMeta w, BunkoDb db, Fetcher fetcher) {
+  final wide = MediaQuery.sizeOf(context).width >= 1100;
+  Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => wide
+          ? ReaderPage(work: w, db: db, fetcher: fetcher)
+          : CardPage(work: w, db: db, fetcher: fetcher)));
+}
 
 class ShelfPage extends StatefulWidget {
   final BunkoDb db;
@@ -446,9 +457,7 @@ class _ShelfPageState extends State<ShelfPage> {
           const Icon(Icons.download_done, size: 16, color: Sumi.muted),
         ],
       ]),
-      onTap: () => Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) =>
-              CardPage(work: w, db: widget.db, fetcher: widget.fetcher))),
+      onTap: () => openWork(context, w, widget.db, widget.fetcher),
     );
   }
 }
@@ -575,11 +584,8 @@ class _AuthorPanelState extends State<AuthorPanel> {
                 const SizedBox(height: 4),
                 for (var i = 0; i < works.length; i++)
                   InkWell(
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => CardPage(
-                            work: works[i],
-                            db: widget.db,
-                            fetcher: widget.fetcher))),
+                    onTap: () => openWork(
+                        context, works[i], widget.db, widget.fetcher),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 7),
                       child: Row(

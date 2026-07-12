@@ -16,6 +16,7 @@ import '../data/models.dart';
 import '../data/toc.dart';
 import '../theme.dart';
 import 'audiobook_controller.dart';
+import 'card_view.dart';
 import 'ruby_text.dart';
 import 'tts_controller.dart';
 import 'vertical_reader.dart';
@@ -36,6 +37,7 @@ class _ReaderPageState extends State<ReaderPage> {
   Doc? _doc;
   double _fontSize = 19;
   bool _vertical = false;
+  bool _showCard = true; // デスクトップ: 左に図書カード
 
   // 横書き: 目次ジャンプ・現在位置
   final _itemScroll = ItemScrollController();
@@ -242,6 +244,13 @@ class _ReaderPageState extends State<ReaderPage> {
         title: Text('${widget.work.title} ／ ${widget.work.author}',
             style: const TextStyle(fontSize: 15)),
         actions: [
+          if (MediaQuery.sizeOf(context).width >= 1100)
+            IconButton(
+              tooltip: _showCard ? '図書カードを隠す' : '図書カードを表示',
+              icon: Icon(Icons.badge_outlined,
+                  color: _showCard ? Sumi.shu : null),
+              onPressed: () => setState(() => _showCard = !_showCard),
+            ),
           IconButton(
             tooltip: '目次',
             icon: const Icon(Icons.toc),
@@ -307,7 +316,31 @@ class _ReaderPageState extends State<ReaderPage> {
               setState(() => _bookOpen = false);
             })
           : null,
-      body: FutureBuilder<Doc>(
+      body: LayoutBuilder(builder: (context, box) {
+        final reading = _buildReading();
+        if (box.maxWidth < 1100 || !_showCard) return reading;
+        return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          SizedBox(
+            width: 300,
+            child: Container(
+              color: Sumi.paperHi,
+              child: CardView(
+                  work: widget.work,
+                  db: widget.db,
+                  fetcher: widget.fetcher,
+                  compact: true,
+                  showHeader: true),
+            ),
+          ),
+          const VerticalDivider(width: 1, color: Sumi.rule),
+          Expanded(child: reading),
+        ]);
+      }),
+    );
+  }
+
+  Widget _buildReading() {
+    return FutureBuilder<Doc>(
         future: _docFuture,
         builder: (context, snap) {
           if (snap.hasError) {
@@ -351,8 +384,7 @@ class _ReaderPageState extends State<ReaderPage> {
             ),
           );
         },
-      ),
-    );
+      );
   }
 }
 
