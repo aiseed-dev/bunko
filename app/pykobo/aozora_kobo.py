@@ -147,8 +147,24 @@ def main(page: ft.Page):
     ed_picker = ft.FilePicker()
     page.services.append(ed_picker)
     # ファイル名・保存形式・組版モードは画面に出さず内部状態として持つ
-    # （メニューの中でだけ扱う ── 昔のワープロの流儀）
-    ed_state = {'filename': 'draft.pykobo', 'mode': 'normal'}
+    # （メニューの中でだけ扱う ── 昔のワープロの流儀）。
+    # 著作権（license）は本文（青空注記テキスト）に行として書く場所が
+    # ないため、.pykobo側の付随データとして持つ（title/authorは本文の
+    # 1・2行目のまま ── 公式の入力規則を崩さない）。
+    ed_state = {'filename': 'draft.pykobo', 'mode': 'normal', 'license': ''}
+
+    def _ed_get_title_author():
+        lines = (ed_text.value or '').split('\n')
+        title = lines[0].strip() if len(lines) > 0 else ''
+        author = lines[1].strip() if len(lines) > 1 else ''
+        return title, author
+
+    def _ed_set_title_author(title, author):
+        lines = (ed_text.value or '').split('\n')
+        while len(lines) < 2:
+            lines.append('')
+        lines[0], lines[1] = title, author
+        _ed_apply('\n'.join(lines), 0, 0)
 
     def _update_doc_title():
         # ウェブサイトではないのでバナーは持たず、ウィンドウ/タブのタイトルに
@@ -412,12 +428,49 @@ def main(page: ft.Page):
         ed_text.value = ''
         ed_state['filename'] = 'draft.pykobo'
         ed_state['mode'] = 'normal'
+        ed_state['license'] = ''
         for k, mi in mi_mode.items():
             mi.leading = _check(k == 'normal')
         _update_doc_title()
         ed_status.value = '新規作成しました'
         _ed_update_status()
         page.update()
+
+    def ed_show_bibinfo(e):
+        """書誌情報（題名・著者・著作権）を別ダイアログで編集。
+
+        題名・著者は本文（青空注記テキスト）の1・2行目そのもの（公式の
+        入力規則）。著作権（license）は本文に書く場所がないため.pykobo側の
+        付随データ（例 'CC BY 4.0'/'CC0'。空欄=作者に著作権があり無断
+        複製・配布不可という既定）。本文編集の最中に紛れ込まないよう、
+        通常のエディタ画面とは別のダイアログで扱う。
+        """
+        title, author = _ed_get_title_author()
+        t_field = ft.TextField(label='題名', value=title, autofocus=True)
+        a_field = ft.TextField(label='著者', value=author)
+        l_field = ft.TextField(
+            label='著作権・ライセンス（空欄可）', value=ed_state.get('license', ''),
+            hint_text='例: CC BY 4.0 / CC0（空欄=作者に著作権があり無断複製・配布不可）')
+
+        def _apply(ev):
+            _ed_set_title_author(t_field.value or '', a_field.value or '')
+            ed_state['license'] = l_field.value or ''
+            ed_status.value = '書誌情報を更新しました'
+            _ed_update_status()
+            page.close(dlg)
+            page.update()
+
+        dlg = ft.AlertDialog(
+            modal=True,
+            title=ft.Text('書誌情報', size=18),
+            content=ft.Column([t_field, a_field, l_field], tight=True,
+                              width=380, spacing=12),
+            actions=[
+                ft.TextButton('キャンセル', on_click=lambda ev: page.close(dlg)),
+                ft.FilledButton('反映', on_click=_apply),
+            ],
+        )
+        page.open(dlg)
 
     async def ed_open(e):
         """開く。.pykobo=工房の作業ファイル（構造化・組版モードも復元）／
@@ -438,6 +491,7 @@ def main(page: ft.Page):
                 obj = _json.loads(raw.decode('utf-8'))
                 text = obj.get('source', '')
                 mode = obj.get('layout_mode', 'normal')
+                license_ = obj.get('license', '')
                 filename = f.name
             else:
                 if f.bytes is not None:        # Web: バイトで来る
@@ -455,8 +509,10 @@ def main(page: ft.Page):
                 else:                          # デスクトップ: パスで来る
                     text = read_text(f.path)
                 mode = 'normal'
+                license_ = ''  # プレーンテキストは著作権を運べない
                 filename = f'{Path(f.name).stem}.pykobo'
             ed_state['mode'] = mode if mode in mi_mode else 'normal'
+            ed_state['license'] = license_
             for k, mi in mi_mode.items():
                 mi.leading = _check(k == ed_state['mode'])
             _ed_push_undo()
@@ -483,6 +539,7 @@ def main(page: ft.Page):
             'pykobo_version': 1,
             'source': ed_text.value or '',
             'layout_mode': ed_state['mode'],
+            'license': ed_state.get('license', ''),
         }, ensure_ascii=False, indent=1).encode('utf-8')
         name = ed_state['filename'] or 'draft.pykobo'
         if not name.endswith('.pykobo'):
@@ -739,6 +796,7 @@ def main(page: ft.Page):
         try:
             from pybunko import parse as _parse
             doc = _parse(text)
+            doc.license = ed_state.get('license', '')
             out = Path('export_out')
             out.mkdir(exist_ok=True)
             path = out / f'{_safe_name(doc.title)}.json'
@@ -819,6 +877,8 @@ def main(page: ft.Page):
                 _mi('新規', ed_new),
                 _mi('開く…', ed_open),
                 _mi('保存', ed_save, 'Ctrl+S'),
+                ft.Divider(height=1, color=RULE),
+                _mi('書誌情報（題名・著者・著作権）…', ed_show_bibinfo),
                 ft.Divider(height=1, color=RULE),
                 ft.SubmenuButton(content=ft.Text('エクスポート', size=15),
                                  controls=[
