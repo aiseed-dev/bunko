@@ -300,23 +300,14 @@ def main(page: ft.Page):
     # ---------- 執筆タブ（昔の日本語ワープロ: 書く→組版→刷る） ----------
     ed_picker = ft.FilePicker()
     page.services.append(ed_picker)
-    ed_path = ft.TextField(label='ファイル名', value='draft.txt',
-                           width=260, bgcolor=PAPER_HI, read_only=True)
-    ed_enc = ft.Dropdown(
-        label='保存形式', width=210, bgcolor=PAPER_HI,
-        value='utf-8',
-        options=[ft.DropdownOption('utf-8', 'UTF-8'),
-                 ft.DropdownOption('sjis', 'Shift_JIS＋CR+LF（提出用）')])
-    ed_mode = ft.Dropdown(
-        label='組版', width=200, bgcolor=PAPER_HI,
-        value='normal',
-        options=[ft.DropdownOption('normal', 'ふつう（40字/列）'),
-                 ft.DropdownOption('genko', '原稿用紙（20×20）')])
+    # ファイル名・保存形式・組版モードは画面に出さず内部状態として持つ
+    # （メニューの中でだけ扱う ── 昔のワープロの流儀）
+    ed_state = {'filename': 'draft.txt', 'enc': 'utf-8', 'mode': 'normal'}
 
     def _washi_opts():
         """組版モード → washi renderの引数と用紙向き。
         ふつう: A4縦・24px ≈ 40字/列。原稿用紙: A4横・24px = マス約6.4mm。"""
-        if ed_mode.value == 'genko':
+        if ed_state['mode'] == 'genko':
             return (dict(vertical=True, genko=True, font_size=24,
                          extra_style='@page{size: A4 landscape;}'),
                     (1123, 794))
@@ -524,7 +515,7 @@ def main(page: ft.Page):
     def ed_new(e):
         _ed_push_undo()
         ed_text.value = ''
-        ed_path.value = 'draft.txt'
+        ed_state['filename'] = 'draft.txt'
         ed_status.value = '新規作成しました'
         _ed_update_status()
         page.update()
@@ -555,7 +546,7 @@ def main(page: ft.Page):
                 text = read_text(f.path)
             _ed_push_undo()
             ed_text.value = text
-            ed_path.value = f.name
+            ed_state['filename'] = f.name
             _ed_last_snapshot['v'] = text
             ed_status.value = f'開きました: {f.name}'
             _ed_update_status()
@@ -565,7 +556,7 @@ def main(page: ft.Page):
 
     def _ed_encode(text):
         """保存形式に応じてバイト列へ（Shift_JIS範囲外は例外を投げる）。"""
-        if ed_enc.value == 'sjis':
+        if ed_state['enc'] == 'sjis':
             return text.replace('\r\n', '\n').replace('\n', '\r\n') \
                 .encode('shift_jis')
         return text.encode('utf-8')
@@ -580,7 +571,7 @@ def main(page: ft.Page):
                                '機械チェックで場所を確認してください')
             page.update()
             return
-        name = ed_path.value.strip() or 'draft.txt'
+        name = ed_state['filename'] or 'draft.txt'
         path = await ed_picker.save_file(
             dialog_title='名前を付けて保存',
             file_name=name,
@@ -592,9 +583,9 @@ def main(page: ft.Page):
         try:
             if not str(path).startswith('upload'):  # デスクトップ: 実パス
                 Path(path).write_bytes(data)
-            ed_path.value = Path(path).name
+            ed_state['filename'] = Path(path).name
             _ed_last_snapshot['v'] = text
-            ed_status.value = f'保存しました: {path}（{ed_enc.value}）'
+            ed_status.value = f'保存しました: {path}（{ed_state["enc"]}）'
         except Exception as ex:
             ed_status.value = f'保存できませんでした: {ex}'
         page.update()
@@ -689,6 +680,48 @@ def main(page: ft.Page):
         return ft.SubmenuButton(
             content=ft.Text(label, size=15), controls=items)
 
+    def _check(on: bool) -> ft.Icon:
+        """選択中の項目にだけ✓を出す（未選択も同じ幅を確保して位置を揃える）。"""
+        return ft.Icon(ft.Icons.CHECK, size=16,
+                      color=SHU if on else 'transparent')
+
+    # 保存形式・組版モードは選択式メニュー項目（✓が現在値を示す）。
+    # 選び直すたびに全項目の✓を更新するので、辞書で持って毎回作り直す。
+    mi_enc, mi_mode = {}, {}
+
+    def _set_enc(v):
+        def handler(e):
+            ed_state['enc'] = v
+            for k, mi in mi_enc.items():
+                mi.leading = _check(k == v)
+            page.update()
+        return handler
+
+    def _set_mode(v):
+        def handler(e):
+            ed_state['mode'] = v
+            for k, mi in mi_mode.items():
+                mi.leading = _check(k == v)
+            page.update()
+        return handler
+
+    mi_enc['utf-8'] = ft.MenuItemButton(
+        content=ft.Text('UTF-8', size=15),
+        leading=_check(ed_state['enc'] == 'utf-8'),
+        on_click=_set_enc('utf-8'))
+    mi_enc['sjis'] = ft.MenuItemButton(
+        content=ft.Text('Shift_JIS＋CR+LF（提出用）', size=15),
+        leading=_check(ed_state['enc'] == 'sjis'),
+        on_click=_set_enc('sjis'))
+    mi_mode['normal'] = ft.MenuItemButton(
+        content=ft.Text('ふつう（40字/列）', size=15),
+        leading=_check(ed_state['mode'] == 'normal'),
+        on_click=_set_mode('normal'))
+    mi_mode['genko'] = ft.MenuItemButton(
+        content=ft.Text('原稿用紙（20×20）', size=15),
+        leading=_check(ed_state['mode'] == 'genko'),
+        on_click=_set_mode('genko'))
+
     ed_menubar = ft.MenuBar(
         style=ft.MenuStyle(bgcolor=PAPER_HI),
         controls=[
@@ -696,6 +729,8 @@ def main(page: ft.Page):
                 _mi('新規', ed_new),
                 _mi('開く…', ed_open),
                 _mi('保存', ed_save, 'Ctrl+S'),
+                ft.SubmenuButton(content=ft.Text('保存形式', size=15),
+                                 controls=[mi_enc['utf-8'], mi_enc['sjis']]),
             ]),
             _menu('編集', [
                 _mi('元に戻す', _ed_do_undo, 'Ctrl+Z'),
@@ -710,7 +745,9 @@ def main(page: ft.Page):
                 _mi('地付き', ed_insert('jitsuki')),
                 _mi('改ページ', ed_insert('kaipage')),
             ]),
-            _menu('組版', [
+            _menu('レイアウト', [
+                mi_mode['normal'], mi_mode['genko'],
+                ft.Divider(height=1, color=RULE),
                 _mi('組版プレビュー', ed_preview_update),
                 _mi('印刷用PDF', ed_pdf),
             ]),
@@ -730,8 +767,7 @@ def main(page: ft.Page):
                           ], wrap=True, visible=False)
 
     tab_write = ft.Column([
-        ft.Row([ed_menubar, ft.Container(width=10),
-                ed_path, ed_enc, ed_mode, ed_busy], wrap=True,
+        ft.Row([ed_menubar, ft.Container(expand=True), ed_busy],
                vertical_alignment=ft.CrossAxisAlignment.CENTER),
         ed_find_row,
         ft.Row([ed_status, ft.Container(expand=True), ed_stat]),
