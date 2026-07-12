@@ -117,6 +117,8 @@ class Document:
     author: str
     paragraphs: list[Paragraph]
     colophon: str = ''   # 底本情報
+    license: str = ''    # 著作権者の選択（例 'CC BY 4.0'/'CC0'。空=作者に著作権があり
+                          # 明示の許可なく複製・配布はできない、という既定を意味する）
 
     def to_html(self, compat: str | None = None) -> str:
         from .formats import to_html
@@ -179,7 +181,8 @@ class Document:
                 d['notes'] = p.notes
             paras.append(d)
         return {'title': self.title, 'author': self.author,
-                'colophon': self.colophon, 'paragraphs': paras}
+                'colophon': self.colophon, 'license': self.license,
+                'paragraphs': paras}
 
     def to_json(self, *, ensure_ascii: bool = False, **kwargs) -> str:
         """to_dict() を JSON 文字列に（既定は非ASCIIをそのまま＝実Unicode文字）。"""
@@ -205,7 +208,8 @@ class Document:
                 align_offset=pd.get('align_offset', 0),
                 jizume=pd.get('jizume', 0), image=image))
         return cls(title=d['title'], author=d['author'],
-                   paragraphs=paras, colophon=d.get('colophon', ''))
+                   paragraphs=paras, colophon=d.get('colophon', ''),
+                   license=d.get('license', ''))
 
 
 def parse(text: str, image_base: str = '',

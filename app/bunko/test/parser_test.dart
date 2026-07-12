@@ -93,6 +93,19 @@ void main() {
       expect(round.paras[0].plain, d.paras[0].plain);
       expect(round.paras[0].decos.length, 1);
     });
+
+    test('license は著作権者の選択・未指定なら空文字（既定=作者に著作権あり）', () {
+      final d = p('本文です。');
+      expect(d.license, '');
+      final licensed = Doc(
+          title: d.title,
+          author: d.author,
+          license: 'CC BY 4.0',
+          paras: d.paras);
+      final round = Doc.fromJson(
+          jsonDecode(jsonEncode(licensed.toJson())) as Map<String, dynamic>);
+      expect(round.license, 'CC BY 4.0');
+    });
   });
 
   test('改ページ類はpbマーカー段落になる（本文には出ない）', () {

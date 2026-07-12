@@ -474,10 +474,14 @@ class _ExternalReaderPageState extends State<ExternalReaderPage> {
         widget.sourceUrl, jsonEncode(widget.doc.toJson()));
     if (mounted) {
       setState(() => _downloaded = true);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text(
-              '手元に保存しました（個人の閲覧用です。著作権は作者にあり、'
-              '第三者への再配布はできません）')));
+      // 著作権は作者の選択（doc.license）。未指定なら「作者に著作権が
+      // あり明示の許可なく複製・配布はできない」が既定（無方式主義）。
+      final notice = widget.doc.license.isNotEmpty
+          ? '手元に保存しました（ライセンス: ${widget.doc.license}）'
+          : '手元に保存しました（個人の閲覧用です。著作権は作者にあり、'
+              '第三者への再配布はできません）';
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(notice)));
     }
   }
 

@@ -99,11 +99,15 @@ class Para {
 
 class Doc {
   final String title, author, colophon;
+  // license: 著作権者の選択（例 'CC BY 4.0'／'CC0'）。空="作者に著作権があり、
+  // 明示の許可なく複製・配布はできない"という既定を意味する（無方式主義）。
+  final String license;
   final List<Para> paras;
   const Doc({
     required this.title,
     required this.author,
     this.colophon = '',
+    this.license = '',
     required this.paras,
   });
 
@@ -111,6 +115,7 @@ class Doc {
         title: j['title'] as String,
         author: j['author'] as String,
         colophon: (j['colophon'] as String?) ?? '',
+        license: (j['license'] as String?) ?? '',
         paras: [
           for (final p in (j['paragraphs'] as List))
             Para.fromJson(p as Map<String, dynamic>)
@@ -121,6 +126,7 @@ class Doc {
         'title': title,
         'author': author,
         'colophon': colophon,
+        'license': license,
         'paragraphs': [for (final p in paras) p.toJson()],
       };
 }

@@ -83,10 +83,11 @@ class MyLibrary {
   }
 
   /// 本文（Document JSON文字列）を手元に保存。作者が公開をやめた後も
-  /// 保存済みの読者だけは読み続けられる。**個人の閲覧用**——著作権は
-  /// 作者にあり、保存した読者が第三者へ再配布してよいわけではない
-  /// （無方式主義で自動的に保護される権利。DRM等の技術制限はしないが、
-  /// 保存時に呼び出し側がその旨を明示する運用とする）。
+  /// 保存済みの読者だけは読み続けられる。著作権の扱いは**作者の選択**
+  /// （Doc.license。例 'CC BY 4.0'／'CC0'）——空なら「作者に著作権があり
+  /// 明示の許可なく複製・配布はできない」が既定（無方式主義で自動的に
+  /// 保護される権利）。DRM等の技術制限はせず、呼び出し側が保存時に
+  /// その旨（doc.licenseの内容）を明示する運用とする。
   static Future<void> saveBody(String url, String docJson) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('$_bodyPrefix$url', docJson);

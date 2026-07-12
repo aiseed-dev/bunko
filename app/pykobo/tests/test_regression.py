@@ -63,6 +63,20 @@ def test_json_roundtrip(merosu_doc):
     assert any('r' in s for p in d['paragraphs'] for s in p['seg'])
 
 
+def test_license_roundtrips_and_defaults_empty():
+    """license は著作権者の選択。未指定なら空文字（既定=作者に著作権あり）。"""
+    from pybunko import Document
+
+    doc = Document(title='t', author='a', paragraphs=[])
+    assert doc.license == ''
+    assert doc.to_dict()['license'] == ''
+
+    licensed = Document(title='t', author='a', paragraphs=[], license='CC BY 4.0')
+    d = licensed.to_dict()
+    assert d['license'] == 'CC BY 4.0'
+    assert Document.from_dict(d).license == 'CC BY 4.0'
+
+
 def test_unknown_notes_collector():
     """unknown_notes=list で、解釈できず除去した注記を収集できる（工作員ツール用）。"""
     from pybunko import parse
