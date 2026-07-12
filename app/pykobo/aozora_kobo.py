@@ -744,6 +744,8 @@ def main(page: ft.Page):
                 _mi('元に戻す', _ed_do_undo, 'Ctrl+Z'),
                 _mi('やり直す', _ed_do_redo, 'Ctrl+Y'),
                 _mi('検索と置換…', _ed_toggle_find),
+                ft.Divider(height=1, color=RULE),
+                _mi('機械チェック', ed_lint),
             ]),
             _menu('挿入', [
                 _mi('ルビ（選択語に）', ed_insert('ruby')),
@@ -758,9 +760,6 @@ def main(page: ft.Page):
                 ft.Divider(height=1, color=RULE),
                 _mi('組版プレビュー', ed_preview_update),
                 _mi('印刷用PDF', ed_pdf),
-            ]),
-            _menu('校正', [
-                _mi('機械チェック', ed_lint),
             ]),
         ])
 
