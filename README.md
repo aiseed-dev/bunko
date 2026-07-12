@@ -44,7 +44,7 @@ bunko/
 ```
 
 `pip install -e './app/pykobo[epub]'` で `import pybunko`（ローカル専用・PyPIには個別登録しない）。
-全体設計は [docs/DESIGN.md](docs/DESIGN.md)、パイプラインの使い方・拡張の仕方は [docs/MANUAL.md](docs/MANUAL.md)。
+全体設計は [docs/DESIGN.md](docs/DESIGN.md)、パイプラインの使い方・拡張の仕方は [docs/MANUAL.md](docs/MANUAL.md)、注記→変換の対応は [docs/KUMIHAN.md](docs/KUMIHAN.md)（本家「組版案内」の現代版）。
 
 ## アーキテクチャ
 
