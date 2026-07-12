@@ -343,23 +343,175 @@ def main(page: ft.Page):
         page.update()
     ed_report = ft.ListView(height=150, spacing=4)
     ed_busy = ft.ProgressRing(width=18, height=18, color=SHU, visible=False)
-    ed_status = status_text('青空注記形式で書けます（記法はボタンでコピー→貼り付け）')
+    ed_status = status_text('青空注記形式で書けます ── 語を選択してルビ/傍点、Ctrl+Sで保存')
 
-    _SNIPPETS = [
-        ('ルビ', '｜親文字《よみ》'),
-        ('傍点', '［＃「対象」に傍点］'),
-        ('大見出し', '見出し［＃「見出し」は大見出し］'),
-        ('字下げ', '［＃ここから２字下げ］\n\n［＃ここで字下げ終わり］'),
-        ('地付き', '［＃地付き］署名'),
-        ('改ページ', '［＃改ページ］'),
-    ]
+    # 選択範囲の追跡（挿入・置換・囲みの基準。普通のエディタと同じ動き）
+    ed_sel = {'start': 0, 'end': 0}
 
-    def ed_copy_snippet(text):
+    def _on_sel(e):
+        try:
+            b, x = e.selection.base_offset, e.selection.extent_offset
+        except AttributeError:
+            return
+        if b < 0:
+            return
+        ed_sel['start'], ed_sel['end'] = min(b, x), max(b, x)
+        _ed_update_status()
+
+    def _ed_text_get():
+        return ed_text.value or ''
+
+    def _ed_apply(new_text, sel_start, sel_end, push_undo=True):
+        """本文を置き換え、カーソル/選択を指定位置へ。"""
+        if push_undo:
+            _ed_push_undo()
+        ed_text.value = new_text
+        ed_text.selection = ft.TextSelection(base_offset=sel_start,
+                                             extent_offset=sel_end)
+        ed_sel['start'], ed_sel['end'] = sel_start, sel_end
+        ed_text.focus()
+        _ed_update_status()
+        page.update()
+
+    def ed_insert(kind):
+        """カーソル位置に挿入。選択があれば選択テキストを注記で包む。"""
         def handler(e):
-            page.set_clipboard(text)
-            ed_status.value = f'記法をコピーしました: {text[:30]} ── エディタに貼り付けてください'
-            page.update()
+            v = _ed_text_get()
+            a, b = ed_sel['start'], ed_sel['end']
+            a, b = max(0, min(a, len(v))), max(0, min(b, len(v)))
+            sel = v[a:b]
+            if kind == 'ruby':
+                t = sel or '親文字'
+                ins = f'｜{t}《よみ》'
+                # 《よみ》の中を選択状態に（すぐ読みを打てる）
+                start = a + len(f'｜{t}《')
+                _ed_apply(v[:a] + ins + v[b:], start, start + 2)
+            elif kind == 'bouten':
+                t = sel or '対象'
+                ins = f'{t}［＃「{t}」に傍点］'
+                _ed_apply(v[:a] + ins + v[b:], a + len(ins), a + len(ins))
+            elif kind == 'midashi':
+                t = sel or '見出し'
+                ins = f'{t}［＃「{t}」は大見出し］'
+                _ed_apply(v[:a] + ins + v[b:], a + len(ins), a + len(ins))
+            elif kind == 'jisage':
+                body = sel or ''
+                ins = f'［＃ここから２字下げ］\n{body}\n［＃ここで字下げ終わり］'
+                pos = a + len('［＃ここから２字下げ］\n')
+                _ed_apply(v[:a] + ins + v[b:], pos, pos + len(body))
+            elif kind == 'jitsuki':
+                ins = f'［＃地付き］{sel}'
+                _ed_apply(v[:a] + ins + v[b:], a + len(ins), a + len(ins))
+            else:  # 改ページ（行として挿入）
+                head = '' if a == 0 or v[a - 1:a] == '\n' else '\n'
+                ins = f'{head}［＃改ページ］\n'
+                _ed_apply(v[:a] + ins + v[a:], a + len(ins), a + len(ins))
         return handler
+
+    # ── Undo / Redo（Ctrl+Z / Ctrl+Y。履歴は編集操作と打鍵の節目で積む） ──
+    ed_undo, ed_redo = [], []
+
+    def _ed_push_undo():
+        ed_undo.append(_ed_text_get())
+        if len(ed_undo) > 200:
+            ed_undo.pop(0)
+        ed_redo.clear()
+
+    def _ed_do_undo(e=None):
+        if not ed_undo:
+            return
+        ed_redo.append(_ed_text_get())
+        v = ed_undo.pop()
+        ed_text.value = v
+        _ed_update_status()
+        page.update()
+
+    def _ed_do_redo(e=None):
+        if not ed_redo:
+            return
+        ed_undo.append(_ed_text_get())
+        ed_text.value = ed_redo.pop()
+        _ed_update_status()
+        page.update()
+
+    _ed_last_snapshot = {'v': ''}
+
+    def _on_change(e):
+        # 打鍵のまとまり（30字ごと or 改行）で履歴を積む
+        v = _ed_text_get()
+        prev = _ed_last_snapshot['v']
+        if abs(len(v) - len(prev)) >= 30 or v.endswith('\n') != prev.endswith('\n'):
+            ed_undo.append(prev)
+            if len(ed_undo) > 200:
+                ed_undo.pop(0)
+            _ed_last_snapshot['v'] = v
+        _ed_update_status()
+        page.update()
+
+    # ── 検索・置換 ──
+    ed_find = ft.TextField(label='検索', width=200, bgcolor=PAPER_HI,
+                           on_submit=lambda e: _ed_find_next(None))
+    ed_repl = ft.TextField(label='置換', width=200, bgcolor=PAPER_HI)
+
+    def _ed_find_next(e):
+        v, q = _ed_text_get(), ed_find.value or ''
+        if not q:
+            return
+        i = v.find(q, ed_sel['end'])
+        if i < 0:
+            i = v.find(q)  # 先頭から折り返し
+        if i < 0:
+            ed_status.value = f'「{q}」は見つかりません'
+            page.update()
+            return
+        _ed_apply(v, i, i + len(q), push_undo=False)
+        line = v.count('\n', 0, i) + 1
+        ed_status.value = f'{line}行目に移動（選択中。続けて「次」で次候補へ）'
+        page.update()
+
+    def _ed_replace_all(e):
+        v, q, r = _ed_text_get(), ed_find.value or '', ed_repl.value or ''
+        if not q:
+            return
+        n = v.count(q)
+        if n == 0:
+            ed_status.value = f'「{q}」は見つかりません'
+            page.update()
+            return
+        _ed_apply(v.replace(q, r), 0, 0)
+        ed_status.value = f'{n}件を置換しました（Ctrl+Zで戻せます）'
+        page.update()
+
+    # ── ステータスバー（文字数・行数・カーソル位置） ──
+    ed_stat = ft.Text('', size=CAPTION, color=MUTED)
+
+    def _ed_update_status():
+        v = _ed_text_get()
+        pos = ed_sel['start']
+        line = v.count('\n', 0, pos) + 1
+        col = pos - (v.rfind('\n', 0, pos) + 1) + 1
+        chars = len(v.replace('\n', ''))
+        sel_n = ed_sel['end'] - ed_sel['start']
+        sel_s = f'　選択 {sel_n}字' if sel_n else ''
+        ed_stat.value = (f'{chars:,}字　{v.count(chr(10)) + 1}行　'
+                         f'カーソル {line}:{col}{sel_s}')
+
+    # エディタ本体へハンドラを接続（定義順の都合で後付け）
+    ed_text.on_selection_change = _on_sel
+    ed_text.on_change = _on_change
+
+    # ── キーボードショートカット（Ctrl+S 保存 / Ctrl+Z / Ctrl+Y） ──
+    def _on_key(e: ft.KeyboardEvent):
+        if not e.ctrl:
+            return
+        k = (e.key or '').upper()
+        if k == 'S':
+            ed_save(None)
+        elif k == 'Z':
+            _ed_do_undo()
+        elif k == 'Y':
+            _ed_do_redo()
+    page.on_keyboard_event = _on_key
 
     def ed_open(e):
         from pybunko.convert import read_text
@@ -379,6 +531,7 @@ def main(page: ft.Page):
                 path.write_bytes(data.encode('shift_jis'))
             else:
                 path.write_text(text, encoding='utf-8')
+            _ed_last_snapshot['v'] = text
             ed_status.value = f'保存しました: {path}（{ed_enc.value}）'
         except UnicodeEncodeError as ex:
             ed_status.value = ('Shift_JISに無い文字があります ── '
@@ -474,10 +627,22 @@ def main(page: ft.Page):
             ft.OutlinedButton('機械チェック', on_click=ed_lint),
             ft.OutlinedButton('印刷用PDF', icon=ft.Icons.PRINT, on_click=ed_pdf),
             ft.Container(width=12),
-            *[ft.TextButton(name, on_click=ed_copy_snippet(snip))
-              for name, snip in _SNIPPETS],
+            ft.TextButton('ルビ', tooltip='選択した語にルビを付ける（無選択なら雛形挿入）',
+                          on_click=ed_insert('ruby')),
+            ft.TextButton('傍点', on_click=ed_insert('bouten')),
+            ft.TextButton('大見出し', on_click=ed_insert('midashi')),
+            ft.TextButton('字下げ', on_click=ed_insert('jisage')),
+            ft.TextButton('地付き', on_click=ed_insert('jitsuki')),
+            ft.TextButton('改ページ', on_click=ed_insert('kaipage')),
         ], wrap=True),
-        ed_status,
+        ft.Row([ed_find,
+                ft.OutlinedButton('次', on_click=_ed_find_next),
+                ed_repl,
+                ft.OutlinedButton('すべて置換', on_click=_ed_replace_all),
+                ft.OutlinedButton('元に戻す (Ctrl+Z)', on_click=_ed_do_undo),
+                ft.OutlinedButton('やり直す (Ctrl+Y)', on_click=_ed_do_redo),
+                ], wrap=True),
+        ft.Row([ed_status, ft.Container(expand=True), ed_stat]),
         ft.Row([
             ft.Container(ed_text, expand=True),
             ed_panel,
