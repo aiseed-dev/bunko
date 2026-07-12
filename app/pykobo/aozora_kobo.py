@@ -148,7 +148,7 @@ def main(page: ft.Page):
     page.services.append(ed_picker)
     # ファイル名・保存形式・組版モードは画面に出さず内部状態として持つ
     # （メニューの中でだけ扱う ── 昔のワープロの流儀）
-    ed_state = {'filename': 'draft.txt', 'enc': 'utf-8', 'mode': 'normal'}
+    ed_state = {'filename': 'draft.pykobo', 'mode': 'normal'}
 
     def _update_doc_title():
         # ウェブサイトではないのでバナーは持たず、ウィンドウ/タブのタイトルに
@@ -367,39 +367,58 @@ def main(page: ft.Page):
     def ed_new(e):
         _ed_push_undo()
         ed_text.value = ''
-        ed_state['filename'] = 'draft.txt'
+        ed_state['filename'] = 'draft.pykobo'
+        ed_state['mode'] = 'normal'
+        for k, mi in mi_mode.items():
+            mi.leading = _check(k == 'normal')
         _update_doc_title()
         ed_status.value = '新規作成しました'
         _ed_update_status()
         page.update()
 
     async def ed_open(e):
+        """開く。.pykobo=工房の作業ファイル（構造化・組版モードも復元）／
+        .txt・.zip=青空注記テキストの取り込み（本文だけを読み込む・
+        取り込み後は「.pykobo」として保存し直す前提）。"""
         from pybunko.convert import read_text
         files = await ed_picker.pick_files(
-            dialog_title='青空注記テキストを開く',
+            dialog_title='開く（.pykobo=作業ファイル／.txt・.zip=青空注記テキスト）',
             file_type=ft.FilePickerFileType.CUSTOM,
-            allowed_extensions=['txt', 'zip'], with_data=True)
+            allowed_extensions=['pykobo', 'txt', 'zip'], with_data=True)
         if not files:
             return
         f = files[0]
         try:
-            if f.bytes is not None:        # Web: バイトで来る
-                import io as _io
-                import zipfile as _zip
-                data = f.bytes
-                if f.name.endswith('.zip') or data[:2] == b'PK':
-                    with _zip.ZipFile(_io.BytesIO(data)) as zf:
-                        data = zf.read(next(n for n in zf.namelist()
-                                            if n.endswith('.txt')))
-                try:
-                    text = data.decode('utf-8-sig')
-                except UnicodeDecodeError:
-                    text = data.decode('shift_jis', errors='replace')
-            else:                          # デスクトップ: パスで来る
-                text = read_text(f.path)
+            if f.name.endswith('.pykobo'):
+                import json as _json
+                raw = f.bytes if f.bytes is not None else Path(f.path).read_bytes()
+                obj = _json.loads(raw.decode('utf-8'))
+                text = obj.get('source', '')
+                mode = obj.get('layout_mode', 'normal')
+                filename = f.name
+            else:
+                if f.bytes is not None:        # Web: バイトで来る
+                    import io as _io
+                    import zipfile as _zip
+                    data = f.bytes
+                    if f.name.endswith('.zip') or data[:2] == b'PK':
+                        with _zip.ZipFile(_io.BytesIO(data)) as zf:
+                            data = zf.read(next(n for n in zf.namelist()
+                                                if n.endswith('.txt')))
+                    try:
+                        text = data.decode('utf-8-sig')
+                    except UnicodeDecodeError:
+                        text = data.decode('shift_jis', errors='replace')
+                else:                          # デスクトップ: パスで来る
+                    text = read_text(f.path)
+                mode = 'normal'
+                filename = f'{Path(f.name).stem}.pykobo'
+            ed_state['mode'] = mode if mode in mi_mode else 'normal'
+            for k, mi in mi_mode.items():
+                mi.leading = _check(k == ed_state['mode'])
             _ed_push_undo()
             ed_text.value = text
-            ed_state['filename'] = f.name
+            ed_state['filename'] = filename
             _update_doc_title()
             _ed_last_snapshot['v'] = text
             ed_status.value = f'開きました: {f.name}'
@@ -408,29 +427,28 @@ def main(page: ft.Page):
             ed_status.value = f'開けませんでした: {ex}'
         page.update()
 
-    def _ed_encode(text):
-        """保存形式に応じてバイト列へ（Shift_JIS範囲外は例外を投げる）。"""
-        if ed_state['enc'] == 'sjis':
-            return text.replace('\r\n', '\n').replace('\n', '\r\n') \
-                .encode('shift_jis')
-        return text.encode('utf-8')
-
     async def ed_save(e):
-        text = ed_text.value or ''
-        try:
-            data = _ed_encode(text)
-        except UnicodeEncodeError as ex:
-            bad = ex.object[ex.start:ex.start + 1]
-            ed_status.value = (f'Shift_JISに無い文字「{bad}」があります ── '
-                               '機械チェックで場所を確認してください')
-            page.update()
-            return
-        name = ed_state['filename'] or 'draft.txt'
+        """保存（Ctrl+S）── 構造化データ（.pykobo・JSON）として。
+
+        本文（そのまま）と組版モードを保持する。プレーンテキストでは
+        組版モード等の設定が次に開いたときに失われる（形式が崩れる）ため、
+        往復（開く・保存）はこの構造化形式で行う。青空文庫への提出用
+        プレーンテキストは「エクスポート」から別途書き出す。
+        """
+        import json as _json
+        data = _json.dumps({
+            'pykobo_version': 1,
+            'source': ed_text.value or '',
+            'layout_mode': ed_state['mode'],
+        }, ensure_ascii=False, indent=1).encode('utf-8')
+        name = ed_state['filename'] or 'draft.pykobo'
+        if not name.endswith('.pykobo'):
+            name = f'{Path(name).stem}.pykobo'
         path = await ed_picker.save_file(
-            dialog_title='名前を付けて保存',
+            dialog_title='名前を付けて保存（工房の作業ファイル）',
             file_name=name,
             file_type=ft.FilePickerFileType.CUSTOM,
-            allowed_extensions=['txt'],
+            allowed_extensions=['pykobo'],
             src_bytes=data)          # Web: これでブラウザDLになる
         if not path:
             return
@@ -439,11 +457,55 @@ def main(page: ft.Page):
                 Path(path).write_bytes(data)
             ed_state['filename'] = Path(path).name
             _update_doc_title()
-            _ed_last_snapshot['v'] = text
-            ed_status.value = f'保存しました: {path}（{ed_state["enc"]}）'
+            _ed_last_snapshot['v'] = ed_text.value or ''
+            ed_status.value = f'保存しました: {path}（構造化データ・そのまま開き直せます）'
         except Exception as ex:
             ed_status.value = f'保存できませんでした: {ex}'
         page.update()
+
+    def _ed_encode(text, enc):
+        """指定エンコードでバイト列へ（Shift_JIS範囲外は例外を投げる）。"""
+        if enc == 'sjis':
+            return text.replace('\r\n', '\n').replace('\n', '\r\n') \
+                .encode('shift_jis')
+        return text.encode('utf-8')
+
+    def ed_export_text(enc):
+        """青空注記テキスト（提出用）として書き出す ── 一回性のエクスポート。
+
+        こちらは往復（開く・保存）の対象ではない。青空文庫へ提出する
+        ときの正規フォーマット（Shift_JIS＋CR+LF、または現代的にUTF-8）
+        に変換するだけの出口。
+        """
+        async def handler(e):
+            text = ed_text.value or ''
+            if not text.strip():
+                return
+            try:
+                data = _ed_encode(text, enc)
+            except UnicodeEncodeError as ex:
+                bad = ex.object[ex.start:ex.start + 1]
+                ed_status.value = (f'Shift_JISに無い文字「{bad}」があります ── '
+                                   '機械チェックで場所を確認してください')
+                page.update()
+                return
+            base = Path(ed_state['filename'] or 'draft.pykobo').stem
+            path = await ed_picker.save_file(
+                dialog_title='青空注記テキストとして書き出す（提出用）',
+                file_name=f'{base}.txt',
+                file_type=ft.FilePickerFileType.CUSTOM,
+                allowed_extensions=['txt'],
+                src_bytes=data)
+            if not path:
+                return
+            try:
+                if not str(path).startswith('upload'):
+                    Path(path).write_bytes(data)
+                ed_status.value = f'✓ 青空注記テキスト（{enc}）: {path}'
+            except Exception as ex:
+                ed_status.value = f'書き出しに失敗: {ex}'
+            page.update()
+        return handler
 
     def ed_lint(e):
         fs = lint(ed_text.value or '')
@@ -686,17 +748,9 @@ def main(page: ft.Page):
         return ft.Icon(ft.Icons.CHECK, size=16,
                       color=SHU if on else 'transparent')
 
-    # 保存形式・組版モードは選択式メニュー項目（✓が現在値を示す）。
+    # 組版モードは選択式メニュー項目（✓が現在値を示す）。
     # 選び直すたびに全項目の✓を更新するので、辞書で持って毎回作り直す。
-    mi_enc, mi_mode = {}, {}
-
-    def _set_enc(v):
-        def handler(e):
-            ed_state['enc'] = v
-            for k, mi in mi_enc.items():
-                mi.leading = _check(k == v)
-            page.update()
-        return handler
+    mi_mode = {}
 
     def _set_mode(v):
         def handler(e):
@@ -706,14 +760,6 @@ def main(page: ft.Page):
             page.update()
         return handler
 
-    mi_enc['utf-8'] = ft.MenuItemButton(
-        content=ft.Text('UTF-8', size=15),
-        leading=_check(ed_state['enc'] == 'utf-8'),
-        on_click=_set_enc('utf-8'))
-    mi_enc['sjis'] = ft.MenuItemButton(
-        content=ft.Text('Shift_JIS＋CR+LF（提出用）', size=15),
-        leading=_check(ed_state['enc'] == 'sjis'),
-        on_click=_set_enc('sjis'))
     mi_mode['normal'] = ft.MenuItemButton(
         content=ft.Text('ふつう（40字/列）', size=15),
         leading=_check(ed_state['mode'] == 'normal'),
@@ -730,11 +776,16 @@ def main(page: ft.Page):
                 _mi('新規', ed_new),
                 _mi('開く…', ed_open),
                 _mi('保存', ed_save, 'Ctrl+S'),
-                ft.SubmenuButton(content=ft.Text('保存形式', size=15),
-                                 controls=[mi_enc['utf-8'], mi_enc['sjis']]),
                 ft.Divider(height=1, color=RULE),
                 ft.SubmenuButton(content=ft.Text('エクスポート', size=15),
                                  controls=[
+                    ft.SubmenuButton(
+                        content=ft.Text('青空注記テキスト（提出用）', size=15),
+                        controls=[
+                            _mi('UTF-8で書き出す…', ed_export_text('utf-8')),
+                            _mi('Shift_JIS＋CR+LFで書き出す…',
+                                ed_export_text('sjis')),
+                        ]),
                     _mi('構造化データ（JSON）', ed_export_json),
                     _mi('EPUB', ed_export_epub),
                 ]),
