@@ -7,6 +7,11 @@
 /// SharedPreferencesはWeb（localStorage）・ネイティブ（実ファイル）の
 /// どちらでも永続化されるため、db_web.dart のインメモリSQLite制約を
 /// 受けない。
+///
+/// 「手元に保存」（saveBody/loadBody）は任意のオプトイン: 作者が公開を
+/// やめた・書籍化のため取り下げた後も、ダウンロード済みの読者だけは
+/// 読み続けられるようにする（購入後の作品でも同じ理屈が要る、という
+/// 発想の延長）。既定は保存しない＝しおりだけのまま軽量に保つ。
 library;
 
 import 'dart:convert';
@@ -14,6 +19,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const _prefsKey = 'my_library_v1';
+const _bodyPrefix = 'my_library_body_v1:';
 
 class AddedWork {
   final String url;
@@ -72,6 +78,29 @@ class MyLibrary {
     final list = await load();
     final updated = list.where((w) => w.url != url).toList();
     await _save(updated);
+    await clearBody(url);
     return updated;
+  }
+
+  /// 本文（Document JSON文字列）を手元に保存。作者が公開をやめた後も
+  /// 保存済みの読者だけは読み続けられる。
+  static Future<void> saveBody(String url, String docJson) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('$_bodyPrefix$url', docJson);
+  }
+
+  static Future<String?> loadBody(String url) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('$_bodyPrefix$url');
+  }
+
+  static Future<bool> hasBody(String url) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.containsKey('$_bodyPrefix$url');
+  }
+
+  static Future<void> clearBody(String url) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('$_bodyPrefix$url');
   }
 }

@@ -6,6 +6,8 @@
 /// 全文コピー、文字サイズ。未取得の本文はミラーから取得しdocへ保存。
 library;
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
@@ -442,6 +444,7 @@ class _ExternalReaderPageState extends State<ExternalReaderPage> {
   double _fontSize = 19;
   bool _vertical = false;
   bool _added = false;
+  bool _downloaded = false;
   final _itemScroll = ItemScrollController();
   final _itemPositions = ItemPositionsListener.create();
   final _vScroll = ScrollController();
@@ -451,6 +454,30 @@ class _ExternalReaderPageState extends State<ExternalReaderPage> {
     super.initState();
     MyLibrary.contains(widget.sourceUrl)
         .then((v) => mounted ? setState(() => _added = v) : null);
+    MyLibrary.hasBody(widget.sourceUrl)
+        .then((v) => mounted ? setState(() => _downloaded = v) : null);
+  }
+
+  /// 本文を手元に保存。作者が後で公開をやめても、保存した読者だけは
+  /// 読み続けられる（追加した作品のブックマークとは別に、実体を持つ）。
+  Future<void> _toggleDownload() async {
+    if (_downloaded) {
+      await MyLibrary.clearBody(widget.sourceUrl);
+      if (mounted) {
+        setState(() => _downloaded = false);
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('手元の保存を削除しました')));
+      }
+      return;
+    }
+    await MyLibrary.saveBody(
+        widget.sourceUrl, jsonEncode(widget.doc.toJson()));
+    if (mounted) {
+      setState(() => _downloaded = true);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content:
+              Text('手元に保存しました（今後、元のURLが無くなっても読めます）')));
+    }
   }
 
   Future<void> _toggleAdded() async {
@@ -555,16 +582,23 @@ class _ExternalReaderPageState extends State<ExternalReaderPage> {
               switch (v) {
                 case 'copy':
                   _copyAll();
+                case 'download':
+                  _toggleDownload();
                 case 'larger':
                   setState(() => _fontSize = (_fontSize + 2).clamp(12, 34));
                 case 'smaller':
                   setState(() => _fontSize = (_fontSize - 2).clamp(12, 34));
               }
             },
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'copy', child: Text('全文コピー（ルビなし）')),
-              PopupMenuItem(value: 'larger', child: Text('文字を大きく')),
-              PopupMenuItem(value: 'smaller', child: Text('文字を小さく')),
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: 'copy', child: Text('全文コピー（ルビなし）')),
+              PopupMenuItem(
+                  value: 'download',
+                  child: Text(_downloaded
+                      ? '手元の保存を削除（今後は元URLから取得）'
+                      : '手元に保存（公開が終わっても読める）')),
+              const PopupMenuItem(value: 'larger', child: Text('文字を大きく')),
+              const PopupMenuItem(value: 'smaller', child: Text('文字を小さく')),
             ],
           ),
         ],
@@ -575,10 +609,8 @@ class _ExternalReaderPageState extends State<ExternalReaderPage> {
           color: Sumi.paperHi,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
           child: Text(
-              (_added
-                      ? '外部URLから表示中（書架の「追加した作品」に登録済み）: '
-                      : '外部URLから表示中（右上の🔖で書架に追加できます）: ') +
-                  widget.sourceUrl,
+              '${_added ? '外部URLから表示中（書架の「追加した作品」に登録済み）' : '外部URLから表示中（右上の🔖で書架に追加できます）'}'
+              '${_downloaded ? '・手元に保存済み' : ''}: ${widget.sourceUrl}',
               style: const TextStyle(fontSize: 11, color: Sumi.muted),
               maxLines: 1,
               overflow: TextOverflow.ellipsis),

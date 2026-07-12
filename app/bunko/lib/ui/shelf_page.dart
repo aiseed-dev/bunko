@@ -435,14 +435,27 @@ class _ShelfPageState extends State<ShelfPage> {
   // ── 追加した作品（同人誌方式・各自のURLを「しおり」として保存） ──
   // 保存するのはURLだけ。開くたびに元の場所から本文を取り直すので、
   // 出典はいつも公開者の手元にある（このアプリは本文を預からない）。
-  Future<void> _openAdded(AddedWork w) async {
+  // ただし作者が公開をやめた等でURLが取得できない場合、読者が「手元に
+  // 保存」済みならそちらへフォールバック（購入済み/ダウンロード済みの
+  // ものは読み続けられる、という原則）。
+  Future<Doc> _fetchDocWithFallback(String url) async {
     try {
-      final res = await http.get(Uri.parse(w.url));
+      final res = await http.get(Uri.parse(url));
       if (res.statusCode != 200) {
         throw Exception('取得できませんでした (${res.statusCode})');
       }
-      final j = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
-      final doc = Doc.fromJson(j);
+      return Doc.fromJson(
+          jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
+    } catch (ex) {
+      final cached = await MyLibrary.loadBody(url);
+      if (cached != null) return Doc.fromJson(jsonDecode(cached));
+      rethrow;
+    }
+  }
+
+  Future<void> _openAdded(AddedWork w) async {
+    try {
+      final doc = await _fetchDocWithFallback(w.url);
       if (!mounted) return;
       await Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => ExternalReaderPage(doc: doc, sourceUrl: w.url)));
@@ -500,12 +513,7 @@ class _ShelfPageState extends State<ShelfPage> {
   // 広告ネットワークは使わない＝このアプリの「一切外部送信しない」設計を維持。
   Future<void> _openDojinshi(DojinshiEntry e) async {
     try {
-      final res = await http.get(Uri.parse(e.url));
-      if (res.statusCode != 200) {
-        throw Exception('取得できませんでした (${res.statusCode})');
-      }
-      final j = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
-      final doc = Doc.fromJson(j);
+      final doc = await _fetchDocWithFallback(e.url);
       if (!mounted) return;
       await Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => ExternalReaderPage(doc: doc, sourceUrl: e.url)));
