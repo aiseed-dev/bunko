@@ -44,6 +44,12 @@ dependencies:
   flutter_tts: ^4.2.5
   scrollable_positioned_list: ^0.3.8
   just_audio: ^0.10.6
+  pdf: ^3.13.0
+  printing: ^5.15.0
+  flutter_svg_cjk_friendly:
+    git:
+      url: https://github.com/aiseed-dev/flutter_svg_cjk_friendly.git
+  flutter_svg: ^2.3.0
 
 dev_dependencies:
   flutter_test:

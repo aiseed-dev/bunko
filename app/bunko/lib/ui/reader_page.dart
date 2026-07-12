@@ -15,6 +15,7 @@ import '../data/fetch.dart';
 import '../data/models.dart';
 import '../data/toc.dart';
 import '../theme.dart';
+import '../print/print_preview.dart';
 import 'audiobook_controller.dart';
 import 'card_view.dart';
 import 'ruby_text.dart';
@@ -322,6 +323,11 @@ class _ReaderPageState extends State<ReaderPage> {
               switch (v) {
                 case 'copy':
                   if (_doc != null) _copyAll(_doc!);
+                case 'print':
+                  if (_doc != null) {
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => PrintPreviewPage(doc: _doc!)));
+                  }
                 case 'larger':
                   setState(() => _fontSize = (_fontSize + 2).clamp(12, 34));
                 case 'smaller':
@@ -330,6 +336,7 @@ class _ReaderPageState extends State<ReaderPage> {
             },
             itemBuilder: (context) => const [
               PopupMenuItem(value: 'copy', child: Text('全文コピー（ルビなし）')),
+              PopupMenuItem(value: 'print', child: Text('印刷（A4縦書き）')),
               PopupMenuItem(value: 'larger', child: Text('文字を大きく')),
               PopupMenuItem(value: 'smaller', child: Text('文字を小さく')),
             ],
