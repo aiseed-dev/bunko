@@ -9,6 +9,7 @@ aozora_kobo.py — 青空工房（工作員の作業台・Flet）
   入力 …… 底本ページの写真（スマフォのカメラ可）→ VLMで注記テキストの下書き
   検査 …… 作品の変換結果を点検（未対応注記・未解決外字〓・統計・プレビュー）
           一括点検＝作品を横断して未対応注記の頻度統計（対応の優先順位を決める）
+          印刷＝washi-md組版で縦書きPDF/HTML（禁則・ルビ・縦中横は washi に委譲）
   校正 …… 作業マニュアル準拠の機械チェック＋Claude校正＋作業履歴の生成
   資産 …… 読者アプリ(bunko)に同梱するデータ資産を作る（書架DB・目次JSON・外字フォント）
   検証 …… pybunko.official の公式XHTML再現を、ミラーの正解HTMLと突き合わせ（diff表示）
@@ -148,6 +149,33 @@ def main(page: ft.Page):
         page.update()
         page.run_thread(lambda: _ins_inspect_work(w))
 
+    def ins_print(fmt: str):
+        state = getattr(ins_print, 'state', None)
+        if not state:
+            return
+        doc = state
+        ins_status.value = f'{fmt.upper()} を組版中…（washi-md）'
+        page.update()
+
+        def work():
+            try:
+                from pybunko.formats import to_pdf, to_washi_html
+                out = Path('print_out')
+                out.mkdir(exist_ok=True)
+                safe = ''.join(c for c in doc.title if c not in '/\\:*?"<>|')
+                if fmt == 'pdf':
+                    path = to_pdf(doc, str(out / f'{safe}.pdf'), vertical=True)
+                else:
+                    path = out / f'{safe}.html'
+                    path.write_text(to_washi_html(doc, vertical=True),
+                                    encoding='utf-8')
+                ins_status.value = f'✓ 組版しました: {path}（印刷はブラウザ/ビューアから）'
+            except Exception as ex:
+                ins_status.value = f'組版に失敗: {ex}'
+            finally:
+                page.update()
+        page.run_thread(work)
+
     def _ins_inspect_work(w: Work):
         try:
             rep = inspect_work(w.text())
@@ -156,9 +184,17 @@ def main(page: ft.Page):
             page.update()
             return
         doc = rep['doc']
+        ins_print.state = doc
         rows: list[ft.Control] = [
-            ft.Text(f'{doc.title} ／ {doc.author}', size=18, weight=ft.FontWeight.W_600,
-                    color=INK),
+            ft.Row([
+                ft.Text(f'{doc.title} ／ {doc.author}', size=18,
+                        weight=ft.FontWeight.W_600, color=INK, expand=True),
+                ft.OutlinedButton('印刷用PDF（縦書き）',
+                                  icon=ft.Icons.PRINT,
+                                  on_click=lambda e: ins_print('pdf')),
+                ft.OutlinedButton('組版HTML',
+                                  on_click=lambda e: ins_print('html')),
+            ]),
             ft.Row([ft.Container(
                 ft.Text(f'{k} {v}', size=12,
                         color=INK_SOFT),

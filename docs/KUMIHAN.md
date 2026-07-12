@@ -104,7 +104,16 @@ python -c "from pybunko import to_official_html, read_text; \
 
 # 機械チェック（チェッカー君・校閲君・点検グループ正規表現の相当品）
 python -m pybunko.kosei 入力.txt
+
+# 印刷用PDF（washi-md 組版: 縦書き・ルビ・禁則。要 [washi] エクストラ＋Chrome）
+python -c "from pybunko import parse, read_text; from pybunko.formats import to_pdf; \
+           to_pdf(parse(read_text('入力.txt')), '出力.pdf', vertical=True)"
 ```
+
+印刷は本家に無かった出力形式である。組版の実体は aiseed-dev/washi-md
+（MIT・青空の傍点・ルビ記法を上流還元済み）に委譲しており、原稿用紙
+（genko=True）・テーマ切替も同じ入口から使える。工房の検査タブにも
+「印刷用PDF」「組版HTML」ボタンがある。
 
 外字グリフ画像は不要になった。外字は実文字で埋め込まれ、表示は
 JIS X 0213 対応フォント1つ（読者アプリ同梱の IPAex明朝、または
