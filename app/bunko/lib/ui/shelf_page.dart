@@ -12,7 +12,6 @@ import 'reader_page.dart';
 import '../data/fetch.dart';
 import '../data/models.dart';
 import '../theme.dart';
-import 'card_page.dart';
 
 const kanaRows = ['あ', 'か', 'さ', 'た', 'な', 'は', 'ま', 'や', 'ら', 'わ', 'その他'];
 
@@ -67,14 +66,11 @@ String ndcSubLabel(String code) {
 
 enum ShelfMode { author, title, ndc } // 作家別 / 作品別 / 分野別（公式の3軸）
 
-/// 作品を開く。デスクトップ幅は読書画面へ直行（図書カードは左サイドバー）、
-/// 狭い画面は従来どおり図書カードページを経由する。
+/// 作品を開く —— 常に読書画面へ直行。図書カードはデスクトップでは
+/// 左サイドバー、スマホではAppBarのバッジからボトムシートで見る。
 void openWork(BuildContext context, WorkMeta w, BunkoDb db, Fetcher fetcher) {
-  final wide = MediaQuery.sizeOf(context).width >= 1100;
   Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => wide
-          ? ReaderPage(work: w, db: db, fetcher: fetcher)
-          : CardPage(work: w, db: db, fetcher: fetcher)));
+      builder: (_) => ReaderPage(work: w, db: db, fetcher: fetcher)));
 }
 
 class ShelfPage extends StatefulWidget {

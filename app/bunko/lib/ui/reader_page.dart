@@ -244,13 +244,39 @@ class _ReaderPageState extends State<ReaderPage> {
         title: Text('${widget.work.title} ／ ${widget.work.author}',
             style: const TextStyle(fontSize: 15)),
         actions: [
-          if (MediaQuery.sizeOf(context).width >= 1100)
-            IconButton(
-              tooltip: _showCard ? '図書カードを隠す' : '図書カードを表示',
-              icon: Icon(Icons.badge_outlined,
-                  color: _showCard ? Sumi.shu : null),
-              onPressed: () => setState(() => _showCard = !_showCard),
-            ),
+          IconButton(
+            tooltip: MediaQuery.sizeOf(context).width >= 1100
+                ? (_showCard ? '図書カードを隠す' : '図書カードを表示')
+                : '図書カード',
+            icon: Icon(Icons.badge_outlined,
+                color: (MediaQuery.sizeOf(context).width >= 1100 && _showCard)
+                    ? Sumi.shu
+                    : null),
+            onPressed: () {
+              if (MediaQuery.sizeOf(context).width >= 1100) {
+                setState(() => _showCard = !_showCard);
+              } else {
+                showModalBottomSheet(
+                  context: context,
+                  backgroundColor: Sumi.paperHi,
+                  shape: const RoundedRectangleBorder(
+                      borderRadius:
+                          BorderRadius.vertical(top: Radius.circular(14))),
+                  builder: (sheet) => SafeArea(
+                    child: SizedBox(
+                      height: MediaQuery.sizeOf(context).height * 0.72,
+                      child: CardView(
+                          work: widget.work,
+                          db: widget.db,
+                          fetcher: widget.fetcher,
+                          compact: true,
+                          showHeader: true),
+                    ),
+                  ),
+                );
+              }
+            },
+          ),
           IconButton(
             tooltip: '目次',
             icon: const Icon(Icons.toc),
