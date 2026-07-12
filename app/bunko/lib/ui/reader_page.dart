@@ -421,6 +421,147 @@ class _ReaderPageState extends State<ReaderPage> {
   }
 }
 
+/// URLから読み込んだ作品を表示する画面 —— 書架（aozora.db）を経由しない。
+///
+/// 「各自が好きなところで公開していい」という方針の実装 ── 中央の投稿
+/// サーバは持たない。AISeed工房の「ファイル→エクスポート→構造化データ
+/// （JSON）」が作る一次表現（Document JSON）を、GitHub・個人サイト・
+/// どこに置いても、そのURLさえあればここでそのまま読める。
+class ExternalReaderPage extends StatefulWidget {
+  final Doc doc;
+  final String sourceUrl;
+  const ExternalReaderPage(
+      {super.key, required this.doc, required this.sourceUrl});
+
+  @override
+  State<ExternalReaderPage> createState() => _ExternalReaderPageState();
+}
+
+class _ExternalReaderPageState extends State<ExternalReaderPage> {
+  double _fontSize = 19;
+  bool _vertical = false;
+  final _itemScroll = ItemScrollController();
+  final _itemPositions = ItemPositionsListener.create();
+  final _vScroll = ScrollController();
+
+  Future<void> _copyAll() async {
+    final text = widget.doc.paras.map((p) => p.plain).join('\n');
+    await Clipboard.setData(ClipboardData(text: text));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('全文をコピーしました（${text.length}字・ルビなし本文）')));
+    }
+  }
+
+  void _showToc() {
+    final entries = buildToc(widget.doc);
+    if (entries.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('この作品に目次（見出し）はありません')));
+      return;
+    }
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Sumi.paperHi,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(14))),
+      builder: (sheet) => SafeArea(
+        child: ListView(shrinkWrap: true, children: [
+          for (final e in entries)
+            ListTile(
+              title: Text(e.label,
+                  style: TextStyle(
+                      fontWeight: e.level == 2
+                          ? FontWeight.w600
+                          : FontWeight.w400)),
+              onTap: () {
+                Navigator.of(sheet).pop();
+                if (_itemScroll.isAttached) {
+                  _itemScroll.scrollTo(
+                      index: e.paraIndex,
+                      duration: const Duration(milliseconds: 300));
+                }
+              },
+            ),
+        ]),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final doc = widget.doc;
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('${doc.title} ／ ${doc.author}',
+            style: const TextStyle(fontSize: 15)),
+        actions: [
+          IconButton(
+              tooltip: '目次', icon: const Icon(Icons.toc), onPressed: _showToc),
+          IconButton(
+            tooltip: _vertical ? '横書きにする' : '縦書きにする',
+            icon: Icon(_vertical
+                ? Icons.text_rotation_none
+                : Icons.text_rotate_vertical),
+            onPressed: () => setState(() => _vertical = !_vertical),
+          ),
+          IconButton(
+            tooltip: '印刷（A4縦書き）',
+            icon: const Icon(Icons.print),
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => PrintPreviewPage(doc: doc))),
+          ),
+          PopupMenuButton<String>(
+            tooltip: 'その他',
+            onSelected: (v) {
+              switch (v) {
+                case 'copy':
+                  _copyAll();
+                case 'larger':
+                  setState(() => _fontSize = (_fontSize + 2).clamp(12, 34));
+                case 'smaller':
+                  setState(() => _fontSize = (_fontSize - 2).clamp(12, 34));
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'copy', child: Text('全文コピー（ルビなし）')),
+              PopupMenuItem(value: 'larger', child: Text('文字を大きく')),
+              PopupMenuItem(value: 'smaller', child: Text('文字を小さく')),
+            ],
+          ),
+        ],
+      ),
+      body: Column(children: [
+        Container(
+          width: double.infinity,
+          color: Sumi.paperHi,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+          child: Text('外部URLから表示中（書架には保存されません）: ${widget.sourceUrl}',
+              style: const TextStyle(fontSize: 11, color: Sumi.muted),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis),
+        ),
+        Expanded(
+          child: _vertical
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: VerticalReader(
+                      doc: doc, fontSize: _fontSize, controller: _vScroll),
+                )
+              : SelectionArea(
+                  child: _HorizontalReader(
+                    doc: doc,
+                    fontSize: _fontSize,
+                    itemScroll: _itemScroll,
+                    itemPositions: _itemPositions,
+                  ),
+                ),
+        ),
+      ]),
+    );
+  }
+}
+
 class _HorizontalReader extends StatelessWidget {
   final Doc doc;
   final double fontSize;

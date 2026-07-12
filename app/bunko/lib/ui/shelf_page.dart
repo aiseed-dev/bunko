@@ -5,7 +5,10 @@
 /// 濁音・半濁音は清音に含める（公式の分類に準拠: カにガ、ハにバ・パ）。
 library;
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 
 import '../data/db.dart';
 import 'reader_page.dart';
@@ -114,6 +117,14 @@ class _ShelfPageState extends State<ShelfPage> {
               style: const TextStyle(fontSize: 11, color: Sumi.muted)),
         ]),
         toolbarHeight: 64,
+        actions: [
+          IconButton(
+            tooltip: 'URLから作品を開く（誰でも好きな場所で公開できる）',
+            icon: const Icon(Icons.add_link),
+            onPressed: () => _openFromUrl(context),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: Column(children: [
         Padding(
@@ -325,6 +336,51 @@ class _ShelfPageState extends State<ShelfPage> {
       separatorBuilder: (c, i) => const Divider(height: 1),
       itemBuilder: (context, i) => _workTile(hits[i]),
     );
+  }
+
+  // ── URLから開く（中央の投稿サーバは持たない・各自が好きな場所で公開） ──
+  // AISeed工房の「ファイル→エクスポート→構造化データ（JSON）」が作る
+  // Document JSONを、GitHub・個人サイト・どこに置いても、そのURLを
+  // 知っていればここで直接読める。書架（aozora.db）には保存しない。
+  Future<void> _openFromUrl(BuildContext context) async {
+    final controller = TextEditingController();
+    final url = await showDialog<String>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('URLから作品を開く'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+              hintText: 'https://…/作品.json（構造化データのURL）'),
+          onSubmitted: (v) => Navigator.of(dialogCtx).pop(v),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(),
+              child: const Text('キャンセル')),
+          FilledButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(controller.text),
+              child: const Text('開く')),
+        ],
+      ),
+    );
+    if (url == null || url.trim().isEmpty || !context.mounted) return;
+    try {
+      final res = await http.get(Uri.parse(url.trim()));
+      if (res.statusCode != 200) {
+        throw Exception('取得できませんでした (${res.statusCode})');
+      }
+      final j = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      final doc = Doc.fromJson(j);
+      if (!context.mounted) return;
+      Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => ExternalReaderPage(doc: doc, sourceUrl: url.trim())));
+    } catch (ex) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('開けませんでした: $ex')));
+    }
   }
 
   // ── 作家別（公式: 公開中 作家別作品一覧） ─────────────────────
