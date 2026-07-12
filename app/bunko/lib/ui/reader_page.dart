@@ -13,6 +13,7 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import '../data/db.dart';
 import '../data/fetch.dart';
 import '../data/models.dart';
+import '../data/my_library.dart';
 import '../data/toc.dart';
 import '../theme.dart';
 import '../print/print_preview.dart';
@@ -440,9 +441,40 @@ class ExternalReaderPage extends StatefulWidget {
 class _ExternalReaderPageState extends State<ExternalReaderPage> {
   double _fontSize = 19;
   bool _vertical = false;
+  bool _added = false;
   final _itemScroll = ItemScrollController();
   final _itemPositions = ItemPositionsListener.create();
   final _vScroll = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    MyLibrary.contains(widget.sourceUrl)
+        .then((v) => mounted ? setState(() => _added = v) : null);
+  }
+
+  Future<void> _toggleAdded() async {
+    if (_added) {
+      await MyLibrary.remove(widget.sourceUrl);
+      if (mounted) {
+        setState(() => _added = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('書架から外しました')));
+      }
+      return;
+    }
+    await MyLibrary.add(AddedWork(
+      url: widget.sourceUrl,
+      title: widget.doc.title,
+      author: widget.doc.author,
+      addedAt: DateTime.now().toIso8601String(),
+    ));
+    if (mounted) {
+      setState(() => _added = true);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('書架に追加しました（本文は元のURLに置いたまま・しおりだけ保存）')));
+    }
+  }
 
   Future<void> _copyAll() async {
     final text = widget.doc.paras.map((p) => p.plain).join('\n');
@@ -497,6 +529,12 @@ class _ExternalReaderPageState extends State<ExternalReaderPage> {
             style: const TextStyle(fontSize: 15)),
         actions: [
           IconButton(
+            tooltip: _added ? '書架から外す' : '書架に追加（次回から一覧に出ます）',
+            icon: Icon(_added ? Icons.bookmark : Icons.bookmark_add_outlined,
+                color: _added ? Sumi.shu : null),
+            onPressed: _toggleAdded,
+          ),
+          IconButton(
               tooltip: '目次', icon: const Icon(Icons.toc), onPressed: _showToc),
           IconButton(
             tooltip: _vertical ? '横書きにする' : '縦書きにする',
@@ -536,7 +574,11 @@ class _ExternalReaderPageState extends State<ExternalReaderPage> {
           width: double.infinity,
           color: Sumi.paperHi,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-          child: Text('外部URLから表示中（書架には保存されません）: ${widget.sourceUrl}',
+          child: Text(
+              (_added
+                      ? '外部URLから表示中（書架の「追加した作品」に登録済み）: '
+                      : '外部URLから表示中（右上の🔖で書架に追加できます）: ') +
+                  widget.sourceUrl,
               style: const TextStyle(fontSize: 11, color: Sumi.muted),
               maxLines: 1,
               overflow: TextOverflow.ellipsis),

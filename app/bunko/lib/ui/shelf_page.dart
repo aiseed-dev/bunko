@@ -14,6 +14,7 @@ import '../data/db.dart';
 import 'reader_page.dart';
 import '../data/fetch.dart';
 import '../data/models.dart';
+import '../data/my_library.dart';
 import '../theme.dart';
 
 const kanaRows = ['あ', 'か', 'さ', 'た', 'な', 'は', 'ま', 'や', 'ら', 'わ', 'その他'];
@@ -67,7 +68,7 @@ String ndcSubLabel(String code) {
   return label == null ? code : '$code $label';
 }
 
-enum ShelfMode { author, title, ndc } // 作家別 / 作品別 / 分野別（公式の3軸）
+enum ShelfMode { author, title, ndc, added } // 作家別 / 作品別 / 分野別 / 追加した作品
 
 /// 作品を開く —— 常に読書画面へ直行。図書カードはデスクトップでは
 /// 左サイドバー、スマホではAppBarのバッジからボトムシートで見る。
@@ -93,11 +94,23 @@ class _ShelfPageState extends State<ShelfPage> {
   String _ndcTop = '9'; // 分野別: 選択中の類（文学が既定）
   String? _ndcSub; // 分野別: 選択中の3桁分類（null=類全体）
   String _query = '';
+  List<AddedWork> _added = [];
 
   void _setRow(String row) => setState(() {
         _row = row;
         _kana = null;
       });
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAdded();
+  }
+
+  Future<void> _loadAdded() async {
+    final list = await MyLibrary.load();
+    if (mounted) setState(() => _added = list);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -106,6 +119,7 @@ class _ShelfPageState extends State<ShelfPage> {
       ShelfMode.author => '作家別作品一覧',
       ShelfMode.title => '作品別一覧',
       ShelfMode.ndc => '分野別リスト',
+      ShelfMode.added => '追加した作品（各自の公開先）',
     };
     return Scaffold(
       appBar: AppBar(
@@ -141,10 +155,16 @@ class _ShelfPageState extends State<ShelfPage> {
             const SizedBox(width: 10),
             // 公式の2軸: 作家別 / 作品別
             SegmentedButton<ShelfMode>(
-              segments: const [
-                ButtonSegment(value: ShelfMode.author, label: Text('作家別')),
-                ButtonSegment(value: ShelfMode.title, label: Text('作品別')),
-                ButtonSegment(value: ShelfMode.ndc, label: Text('分野別')),
+              segments: [
+                const ButtonSegment(
+                    value: ShelfMode.author, label: Text('作家別')),
+                const ButtonSegment(
+                    value: ShelfMode.title, label: Text('作品別')),
+                const ButtonSegment(value: ShelfMode.ndc, label: Text('分野別')),
+                ButtonSegment(
+                    value: ShelfMode.added,
+                    label: Text(
+                        _added.isEmpty ? '追加した作品' : '追加した作品（${_added.length}）')),
               ],
               selected: {_mode},
               showSelectedIcon: false,
@@ -231,7 +251,9 @@ class _ShelfPageState extends State<ShelfPage> {
             ),
           ),
         ],
-        if (_query.isEmpty && _mode != ShelfMode.ndc) ...[
+        if (_query.isEmpty &&
+            _mode != ShelfMode.ndc &&
+            _mode != ShelfMode.added) ...[
           // 五十音の行（公式: あ行〜わ行）
           SizedBox(
             height: 44,
@@ -300,12 +322,13 @@ class _ShelfPageState extends State<ShelfPage> {
             final wide = box.maxWidth >= 980;
             final twoPane =
                 wide && _mode == ShelfMode.author && _query.isEmpty;
-            final body = _query.isNotEmpty
+            final body = _query.isNotEmpty && _mode != ShelfMode.added
                 ? _searchList()
                 : switch (_mode) {
                     ShelfMode.author => _authorList(wide: twoPane),
                     ShelfMode.title => _titleList(),
                     ShelfMode.ndc => _ndcList(),
+                    ShelfMode.added => _addedList(),
                   };
             if (!twoPane) return body;
             return Row(crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -374,13 +397,77 @@ class _ShelfPageState extends State<ShelfPage> {
       final j = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
       final doc = Doc.fromJson(j);
       if (!context.mounted) return;
-      Navigator.of(context).push(MaterialPageRoute(
+      await Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => ExternalReaderPage(doc: doc, sourceUrl: url.trim())));
+      _loadAdded();
     } catch (ex) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('開けませんでした: $ex')));
     }
+  }
+
+  // ── 追加した作品（同人誌方式・各自のURLを「しおり」として保存） ──
+  // 保存するのはURLだけ。開くたびに元の場所から本文を取り直すので、
+  // 出典はいつも公開者の手元にある（このアプリは本文を預からない）。
+  Future<void> _openAdded(AddedWork w) async {
+    try {
+      final res = await http.get(Uri.parse(w.url));
+      if (res.statusCode != 200) {
+        throw Exception('取得できませんでした (${res.statusCode})');
+      }
+      final j = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      final doc = Doc.fromJson(j);
+      if (!mounted) return;
+      await Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => ExternalReaderPage(doc: doc, sourceUrl: w.url)));
+      _loadAdded(); // 読書画面で「書架から外す」を押していたら反映
+    } catch (ex) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('開けませんでした: $ex')));
+    }
+  }
+
+  Future<void> _removeAdded(AddedWork w) async {
+    final list = await MyLibrary.remove(w.url);
+    if (mounted) setState(() => _added = list);
+  }
+
+  Widget _addedList() {
+    if (_added.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+              '右上の🔗「URLから作品を開く」で読んだ作品を、\n'
+              '読書画面の🔖で書架に追加すると、ここに並びます。\n'
+              '（中央の投稿先は持ちません。各自が好きな場所で公開できます）',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Sumi.muted, fontSize: 13)),
+        ),
+      );
+    }
+    return ListView.separated(
+      itemCount: _added.length,
+      separatorBuilder: (c, i) => const Divider(height: 1),
+      itemBuilder: (context, i) {
+        final w = _added[i];
+        return ListTile(
+          title: Text(w.title.isEmpty ? w.url : w.title),
+          subtitle: Text(w.author.isEmpty ? w.url : '${w.author}　${w.url}',
+              style: const TextStyle(fontSize: 12, color: Sumi.muted),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis),
+          trailing: IconButton(
+            tooltip: '書架から外す',
+            icon: const Icon(Icons.close, size: 18, color: Sumi.muted),
+            onPressed: () => _removeAdded(w),
+          ),
+          onTap: () => _openAdded(w),
+        );
+      },
+    );
   }
 
   // ── 作家別（公式: 公開中 作家別作品一覧） ─────────────────────

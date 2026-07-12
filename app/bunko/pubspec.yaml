@@ -50,6 +50,7 @@ dependencies:
     git:
       url: https://github.com/aiseed-dev/flutter_svg_cjk_friendly.git
   flutter_svg: ^2.3.0
+  shared_preferences: ^2.3.0
 
 dev_dependencies:
   flutter_test:
