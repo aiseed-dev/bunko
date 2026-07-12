@@ -253,6 +253,49 @@ def main(page: ft.Page):
                 _ed_apply(v[:a] + ins + v[a:], a + len(ins), a + len(ins))
         return handler
 
+    def _png_dimensions(data: bytes) -> tuple[int, int] | None:
+        """PNGヘッダから幅・高さを読む（依存なし）。PNG以外はNone。"""
+        if (len(data) >= 24 and data[:8] == b'\x89PNG\r\n\x1a\n'
+                and data[12:16] == b'IHDR'):
+            return (int.from_bytes(data[16:20], 'big'),
+                    int.from_bytes(data[20:24], 'big'))
+        return None
+
+    async def ed_insert_image(e):
+        """挿絵を挿入 —— 画像を選び、images/ に保存して注記をカーソル位置に。
+
+        公式のファイル名規則（fig作品ID_通し番号.png、マニュアル4-10）の
+        作品IDは公開時に決まるため、ここでは仮の番号（fig0_NN.png）を使う。
+        提出前に「入力ファイルへの記載事項」の手順で正式名へリネームする。
+        選択していた文字列があればキャプションとして使う。
+        """
+        files = await ed_picker.pick_files(
+            dialog_title='挿絵の画像を選ぶ（PNG推奨）',
+            file_type=ft.FilePickerFileType.IMAGE, with_data=True)
+        if not files:
+            return
+        f = files[0]
+        data = f.bytes if f.bytes is not None else Path(f.path).read_bytes()
+        if not data:
+            return
+        ed_state['fig_seq'] = ed_state.get('fig_seq', 0) + 1
+        filename = f'fig0_{ed_state["fig_seq"]:02d}.png'
+        out = Path('images')
+        out.mkdir(exist_ok=True)
+        (out / filename).write_bytes(data)
+
+        v = _ed_text_get()
+        a, b = ed_sel['start'], ed_sel['end']
+        a, b = max(0, min(a, len(v))), max(0, min(b, len(v)))
+        caption = v[a:b]
+        dims = _png_dimensions(data)
+        dim_note = f'、横{dims[0]}×縦{dims[1]}' if dims else ''
+        ins = f'［＃{caption}（{filename}{dim_note}）入る］'
+        _ed_apply(v[:a] + ins + v[b:], a + len(ins), a + len(ins))
+        ed_status.value = (f'✓ 画像を images/{filename} に保存し、注記を挿入しました '
+                           '── 提出時は作品ID確定後に公式のファイル名へリネーム')
+        page.update()
+
     # ── Undo / Redo（Ctrl+Z / Ctrl+Y。履歴は編集操作と打鍵の節目で積む） ──
     ed_undo, ed_redo = [], []
 
@@ -804,6 +847,8 @@ def main(page: ft.Page):
                 _mi('字下げブロック', ed_insert('jisage')),
                 _mi('地付き', ed_insert('jitsuki')),
                 _mi('改ページ', ed_insert('kaipage')),
+                ft.Divider(height=1, color=RULE),
+                _mi('挿絵（画像）…', ed_insert_image),
             ]),
             _menu('レイアウト', [
                 mi_mode['normal'], mi_mode['genko'],
