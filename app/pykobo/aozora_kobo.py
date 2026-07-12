@@ -7,13 +7,13 @@ aozora_kobo.py — AISeed工房（工作員の作業台・Flet）
 Pythonパイプライン（pybunko）を同一プロセスで直接呼ぶ ── これがFlet採用
 の理由（DESIGN.md ADR-4）。タブ:
 
-  執筆 …… 青空注記形式で書く。組版プレビュー（washi-md）・機械チェック・
+  執筆 …… 青空注記形式で書く。組版プレビュー（washi）・機械チェック・
           印刷PDF・保存（UTF-8／提出用Shift_JIS CR+LF）
 
   入力 …… 底本ページの写真（スマフォのカメラ可）→ VLMで注記テキストの下書き
   検査 …… 作品の変換結果を点検（未対応注記・未解決外字〓・統計・プレビュー）
           一括点検＝作品を横断して未対応注記の頻度統計（対応の優先順位を決める）
-          印刷＝washi-md組版で縦書きPDF/HTML（禁則・ルビ・縦中横は washi に委譲）
+          印刷＝washi組版で縦書きPDF/HTML（禁則・ルビ・縦中横は washi に委譲）
   校正 …… 作業マニュアル準拠の機械チェック＋Claude校正＋作業履歴の生成
   資産 …… 読者アプリ(bunko)に同梱するデータ資産を作る（書架DB・目次JSON・外字フォント）
   検証 …… pybunko.official の公式XHTML再現を、ミラーの正解HTMLと突き合わせ（diff表示）
@@ -616,7 +616,7 @@ def main(page: ft.Page):
         page.update()
 
     def _washi_png(text: str) -> bytes:
-        """washi-md組版の1頁目をPNGに（昔のワープロの印刷プレビュー相当）。"""
+        """washi組版の1頁目をPNGに（昔のワープロの印刷プレビュー相当）。"""
         import subprocess, tempfile
         from pybunko import parse as _parse
         from pybunko.formats import to_washi_html
@@ -649,7 +649,7 @@ def main(page: ft.Page):
                 ed_preview.src = ('data:image/png;base64,'
                                   + base64.b64encode(png).decode())
                 ed_panel.visible = True
-                ed_status.value = '組版プレビューを更新しました（washi-md・縦書き）'
+                ed_status.value = '組版プレビューを更新しました（washi・縦書き）'
             except Exception as ex:
                 ed_status.value = f'組版に失敗: {ex}'
             finally:

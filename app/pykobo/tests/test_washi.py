@@ -1,14 +1,14 @@
-"""washi-md 連携（縦書き・PDF組版）テスト。
+"""washi(pywashi)連携（縦書き・PDF組版）テスト。
 
-Document → Markdown（dendenルビ）→ washi-md.render の経路を確認する。
-washi-md（aiseed-dev, [washi]エクストラ）が入っていなければskip。
+Document → Markdown（dendenルビ）→ pywashi.render の経路を確認する。
+pywashi（aiseed-dev, [washi]エクストラ）が入っていなければskip。
 これは「一緒にバージョンアップ」する組版レイヤーとの結線点。
 """
 import pytest
 
 from pybunko import parse
 
-washi_md = pytest.importorskip("washi_md")
+pywashi = pytest.importorskip("pywashi")
 
 
 def test_to_markdown_ruby():
@@ -43,16 +43,16 @@ def test_to_markdown_bouten():
 
 
 def test_bouten_roundtrip_through_washi():
-    """注記 → Markdown → washi-md(bouten プラグイン) → <em class> の往復。"""
+    """注記 → Markdown → pywashi(bouten プラグイン) → <em class> の往復。"""
     doc = parse("題\n著\n\n邪智暴虐［＃「邪智暴虐」に傍点］の王。\n")
-    html = washi_md.render(doc.to_markdown(), vertical=True)
+    html = pywashi.render(doc.to_markdown(), vertical=True)
     assert '<em class="sesame_dot">邪智暴虐</em>' in html
-    # washi の CSS に text-emphasis 定義が入っていること（縦書きで圏点が出る）
+    # pywashi の CSS に text-emphasis 定義が入っていること（縦書きで圏点が出る）
     assert "text-emphasis" in html
 
 
 def test_to_washi_html_vertical():
-    # 縦書きHTMLが生成される（washi-mdは純Python・オフライン）
+    # 縦書きHTMLが生成される（pywashiは純Python・オフライン）
     doc = parse("題\n著\n\n本文です。{漢字|かんじ}\n".replace("{漢字|かんじ}", ""))
     html = doc.to_washi_html(vertical=True)
     assert isinstance(html, str) and len(html) > 200

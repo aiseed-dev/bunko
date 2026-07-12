@@ -169,13 +169,14 @@ def to_speech_text(doc: Document) -> list[str]:
     return sentences
 
 
-# ── washi-md 連携（縦書き・原稿用紙・PDF組版）─────────────────────
-# 依存は [washi] エクストラ（aiseed-dev/washi-md）。本体のゼロ依存は崩さない。
+# ── washi(pywashi)連携（縦書き・原稿用紙・PDF組版）───────────────
+# 依存は [washi] エクストラ（aiseed-dev/pywashi。PyPI名=pywashi・CLI名=washi）。
+# 本体のゼロ依存は崩さない。
 
 def to_markdown(doc: Document) -> str:
     """Document → Markdown（dendenルビ `{漢字|かんじ}`）。
 
-    washi-md / mdit-py-cjk-friendly の入力形式。ルビはよみデータとして
+    pywashi / mdit-py-cjk-friendly の入力形式。ルビはよみデータとして
     `{base|reading}` に、太字/斜体は **/* に、傍点・傍線（em）は
     mdit-py-cjk-friendly の bouten プラグイン記法 `[対象]{.class}` に、
     その他（sub/sup）はHTMLで渡す。見出しは # の深さで表す。
@@ -206,22 +207,22 @@ def to_markdown(doc: Document) -> str:
 
 def to_washi_html(doc: Document, vertical: bool = True,
                   genko: bool = False, theme: str = 'default', **kwargs) -> str:
-    """washi-md で縦書き等の組版HTMLを返す（要 `pip install -e 'app/pykobo[washi]'`）。"""
-    import washi_md
-    return washi_md.render(to_markdown(doc), title=doc.title, author=doc.author,
-                           vertical=vertical, genko=genko, theme=theme, **kwargs)
+    """washi(pywashi)で縦書き等の組版HTMLを返す（要 `pip install -e 'app/pykobo[washi]'`）。"""
+    import pywashi
+    return pywashi.render(to_markdown(doc), title=doc.title, author=doc.author,
+                          vertical=vertical, genko=genko, theme=theme, **kwargs)
 
 
 def to_pdf(doc: Document, path: str, vertical: bool = True, **kwargs) -> str:
-    """washi-md 経由でPDFを書き出す（ヘッドレスChrome必須）。パスを返す。"""
+    """washi(pywashi)経由でPDFを書き出す（ヘッドレスChrome必須）。パスを返す。"""
     import tempfile
     from pathlib import Path
 
-    import washi_md
+    import pywashi
     html_str = to_washi_html(doc, vertical=vertical, **kwargs)
     with tempfile.NamedTemporaryFile('w', suffix='.html', delete=False,
                                      encoding='utf-8') as f:
         f.write(html_str)
         tmp = Path(f.name)
-    washi_md.to_pdf(tmp, Path(path))
+    pywashi.to_pdf(tmp, Path(path))
     return path
