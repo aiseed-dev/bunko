@@ -475,8 +475,9 @@ class _ExternalReaderPageState extends State<ExternalReaderPage> {
     if (mounted) {
       setState(() => _downloaded = true);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content:
-              Text('手元に保存しました（今後、元のURLが無くなっても読めます）')));
+          content: Text(
+              '手元に保存しました（個人の閲覧用です。著作権は作者にあり、'
+              '第三者への再配布はできません）')));
     }
   }
 

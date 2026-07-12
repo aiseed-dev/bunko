@@ -83,7 +83,10 @@ class MyLibrary {
   }
 
   /// 本文（Document JSON文字列）を手元に保存。作者が公開をやめた後も
-  /// 保存済みの読者だけは読み続けられる。
+  /// 保存済みの読者だけは読み続けられる。**個人の閲覧用**——著作権は
+  /// 作者にあり、保存した読者が第三者へ再配布してよいわけではない
+  /// （無方式主義で自動的に保護される権利。DRM等の技術制限はしないが、
+  /// 保存時に呼び出し側がその旨を明示する運用とする）。
   static Future<void> saveBody(String url, String docJson) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('$_bodyPrefix$url', docJson);
