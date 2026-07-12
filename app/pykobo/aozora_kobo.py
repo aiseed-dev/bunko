@@ -2,9 +2,13 @@
 """
 aozora_kobo.py — 青空工房（工作員の作業台・Flet）
 
-工作員（入力・校正・保守）向けの統合ツール。Pythonパイプライン
-（pybunko）を同一プロセスで直接呼ぶ ── これがFlet採用の理由
-（DESIGN.md ADR-4）。3つのタブ:
+工作員（入力・校正・保守）と書き手のための統合ツール ── 昔の日本語
+ワープロの現代版（テキストで書き、組版で確かめ、紙とデータに出す）。
+Pythonパイプライン（pybunko）を同一プロセスで直接呼ぶ ── これがFlet採用
+の理由（DESIGN.md ADR-4）。タブ:
+
+  執筆 …… 青空注記形式で書く。組版プレビュー（washi-md）・機械チェック・
+          印刷PDF・保存（UTF-8／提出用Shift_JIS CR+LF）
 
   入力 …… 底本ページの写真（スマフォのカメラ可）→ VLMで注記テキストの下書き
   検査 …… 作品の変換結果を点検（未対応注記・未解決外字〓・統計・プレビュー）
@@ -279,6 +283,168 @@ def main(page: ft.Page):
     ], expand=True, spacing=8)
 
     _claude = ClaudeClient()
+
+    # ---------- 執筆タブ（昔の日本語ワープロ: 書く→組版→刷る） ----------
+    ed_path = ft.TextField(label='ファイル（開く/保存）', value='draft.txt',
+                           dense=True, expand=True, bgcolor=PAPER_HI)
+    ed_enc = ft.Dropdown(
+        label='保存形式', width=210, dense=True, bgcolor=PAPER_HI,
+        value='utf-8',
+        options=[ft.DropdownOption('utf-8', 'UTF-8'),
+                 ft.DropdownOption('sjis', 'Shift_JIS＋CR+LF（提出用）')])
+    ed_text = ft.TextField(
+        multiline=True, min_lines=26, max_lines=26, expand=True,
+        bgcolor=PAPER_HI, text_style=ft.TextStyle(size=14, color=INK),
+        hint_text='題名\n著者名\n\n　本文をここに（青空注記形式）…')
+    ed_preview = ft.Image(src='', fit=ft.BoxFit.CONTAIN, visible=False,
+                          expand=True)
+    ed_report = ft.ListView(height=150, spacing=4)
+    ed_busy = ft.ProgressRing(width=18, height=18, color=SHU, visible=False)
+    ed_status = status_text('青空注記形式で書けます（記法はボタンでコピー→貼り付け）')
+
+    _SNIPPETS = [
+        ('ルビ', '｜親文字《よみ》'),
+        ('傍点', '［＃「対象」に傍点］'),
+        ('大見出し', '見出し［＃「見出し」は大見出し］'),
+        ('字下げ', '［＃ここから２字下げ］\n\n［＃ここで字下げ終わり］'),
+        ('地付き', '［＃地付き］署名'),
+        ('改ページ', '［＃改ページ］'),
+    ]
+
+    def ed_copy_snippet(text):
+        def handler(e):
+            page.set_clipboard(text)
+            ed_status.value = f'記法をコピーしました: {text[:30]} ── エディタに貼り付けてください'
+            page.update()
+        return handler
+
+    def ed_open(e):
+        from pybunko.convert import read_text
+        try:
+            ed_text.value = read_text(ed_path.value.strip())
+            ed_status.value = f'開きました: {ed_path.value}'
+        except Exception as ex:
+            ed_status.value = f'開けませんでした: {ex}'
+        page.update()
+
+    def ed_save(e):
+        try:
+            path = Path(ed_path.value.strip())
+            text = ed_text.value or ''
+            if ed_enc.value == 'sjis':
+                data = text.replace('\r\n', '\n').replace('\n', '\r\n')
+                path.write_bytes(data.encode('shift_jis'))
+            else:
+                path.write_text(text, encoding='utf-8')
+            ed_status.value = f'保存しました: {path}（{ed_enc.value}）'
+        except UnicodeEncodeError as ex:
+            ed_status.value = ('Shift_JISに無い文字があります ── '
+                               f'機械チェックで場所を確認してください（{ex.object[ex.start:ex.start+1]}）')
+        except Exception as ex:
+            ed_status.value = f'保存できませんでした: {ex}'
+        page.update()
+
+    def ed_lint(e):
+        fs = lint(ed_text.value or '')
+        ed_report.controls = [
+            finding_tile(f.line, f.rule, f.text, f.note) for f in fs
+        ] or [ft.Text('機械チェックは0件です。', color=OK)]
+        ed_status.value = f'機械チェック {len(fs)} 件'
+        page.update()
+
+    def _washi_png(text: str) -> bytes:
+        """washi-md組版の1頁目をPNGに（昔のワープロの印刷プレビュー相当）。"""
+        import base64 as _b64  # noqa: F401  （説明用・未使用でも害なし）
+        import subprocess, tempfile
+        from pybunko import parse as _parse
+        from pybunko.formats import to_washi_html
+        html = to_washi_html(_parse(text), vertical=True)
+        with tempfile.TemporaryDirectory() as td:
+            html_p = Path(td) / 'p.html'
+            png_p = Path(td) / 'p.png'
+            html_p.write_text(html, encoding='utf-8')
+            subprocess.run(
+                ['google-chrome', '--headless', '--disable-gpu',
+                 '--window-size=794,1123', f'--screenshot={png_p}',
+                 html_p.resolve().as_uri()],
+                check=True, capture_output=True)
+            return png_p.read_bytes()
+
+    def ed_preview_update(e):
+        text = ed_text.value or ''
+        if not text.strip():
+            ed_status.value = '本文が空です'
+            page.update()
+            return
+        ed_busy.visible = True
+        page.update()
+
+        def work():
+            try:
+                import base64
+                png = _washi_png(text)
+                ed_preview.src = ('data:image/png;base64,'
+                                  + base64.b64encode(png).decode())
+                ed_preview.visible = True
+                ed_status.value = '組版プレビューを更新しました（washi-md・縦書き）'
+            except Exception as ex:
+                ed_status.value = f'組版に失敗: {ex}'
+            finally:
+                ed_busy.visible = False
+                page.update()
+        page.run_thread(work)
+
+    def ed_pdf(e):
+        text = ed_text.value or ''
+        if not text.strip():
+            return
+        ed_busy.visible = True
+        page.update()
+
+        def work():
+            try:
+                from pybunko import parse as _parse
+                from pybunko.formats import to_pdf
+                doc = _parse(text)
+                out = Path('print_out')
+                out.mkdir(exist_ok=True)
+                safe = ''.join(c for c in (doc.title or 'draft')
+                               if c not in '/\\:*?"<>|')
+                path = to_pdf(doc, str(out / f'{safe}.pdf'), vertical=True)
+                ed_status.value = f'✓ 印刷用PDF: {path}'
+            except Exception as ex:
+                ed_status.value = f'PDF化に失敗: {ex}'
+            finally:
+                ed_busy.visible = False
+                page.update()
+        page.run_thread(work)
+
+    tab_write = ft.Column([
+        ft.Row([ed_path, ed_enc,
+                ft.OutlinedButton('開く', on_click=ed_open),
+                ft.FilledButton('保存', bgcolor=SHU, color=PAPER_HI,
+                                on_click=ed_save), ed_busy]),
+        ft.Row([
+            ft.FilledButton('組版プレビュー', bgcolor=INK_SOFT, color=PAPER_HI,
+                            icon=ft.Icons.PREVIEW, on_click=ed_preview_update),
+            ft.OutlinedButton('機械チェック', on_click=ed_lint),
+            ft.OutlinedButton('印刷用PDF', icon=ft.Icons.PRINT, on_click=ed_pdf),
+            ft.Container(width=12),
+            *[ft.TextButton(name, on_click=ed_copy_snippet(snip))
+              for name, snip in _SNIPPETS],
+        ], wrap=True),
+        ed_status,
+        ft.Row([
+            ft.Container(ed_text, expand=3),
+            ft.Container(
+                ft.Column([
+                    ft.Text('組版プレビュー（A4・1頁目）', size=11, color=MUTED),
+                    ed_preview,
+                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                expand=2, bgcolor=PAPER_HI, padding=8, border_radius=6),
+        ], expand=True, vertical_alignment=ft.CrossAxisAlignment.START),
+        ed_report,
+    ], expand=True, spacing=8)
 
     # ---------- 入力タブ ----------
     # 底本ページの写真 → VLM書き起こし（下書き）。スマフォからは工房のURLを
@@ -658,21 +824,22 @@ def main(page: ft.Page):
     header = ft.Container(
         ft.Column([
             ft.Text('青空工房', size=24, weight=ft.FontWeight.W_600, color=INK),
-            ft.Text('工作員の作業台 ── 入力・校正・検査・資産づくり・検証（Pythonパイプライン直結）',
+            ft.Text('書く・整える・届ける ── 執筆・入力・校正・検査・資産・検証（日本語ワープロ＋工作員の作業台）',
                     size=12, color=MUTED),
         ], spacing=2),
         padding=ft.Padding(20, 14, 20, 10), bgcolor=PAPER_HI,
     )
 
     tabs = ft.Tabs(
-        length=5,
+        length=6,
         expand=True,
         content=ft.Column([
-            ft.TabBar(tabs=[ft.Tab(label='入力'), ft.Tab(label='校正'),
-                            ft.Tab(label='検査'), ft.Tab(label='資産'),
-                            ft.Tab(label='検証')],
+            ft.TabBar(tabs=[ft.Tab(label='執筆'), ft.Tab(label='入力'),
+                            ft.Tab(label='校正'), ft.Tab(label='検査'),
+                            ft.Tab(label='資産'), ft.Tab(label='検証')],
                       indicator_color=SHU, divider_color=RULE),
             ft.TabBarView(controls=[
+                ft.Container(tab_write, padding=16),
                 ft.Container(tab_input, padding=16),
                 ft.Container(tab_kosei, padding=16),
                 ft.Container(tab_inspect, padding=16),
