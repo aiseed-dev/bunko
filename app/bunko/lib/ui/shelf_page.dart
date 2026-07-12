@@ -278,24 +278,23 @@ class _ShelfPageState extends State<ShelfPage> {
         const Divider(height: 8),
         Expanded(
           child: LayoutBuilder(builder: (context, box) {
+            // デスクトップ幅の作家別: 左=作家一覧、右=作家別作品リスト（公式準拠）
+            final wide = box.maxWidth >= 980;
+            final twoPane =
+                wide && _mode == ShelfMode.author && _query.isEmpty;
             final body = _query.isNotEmpty
                 ? _searchList()
                 : switch (_mode) {
-                    ShelfMode.author => _authorList(),
+                    ShelfMode.author => _authorList(wide: twoPane),
                     ShelfMode.title => _titleList(),
                     ShelfMode.ndc => _ndcList(),
                   };
-            // デスクトップ幅の作家別: 右に作家の紹介パネル
-            final wide = box.maxWidth >= 980;
-            if (!wide || _mode != ShelfMode.author || _query.isNotEmpty) {
-              return body;
-            }
+            if (!twoPane) return body;
             return Row(crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(child: body),
+                  SizedBox(width: 340, child: body),
                   const VerticalDivider(width: 1, color: Sumi.rule),
-                  SizedBox(
-                    width: 340,
+                  Expanded(
                     child: AuthorPanel(
                         author: _selAuthor,
                         db: widget.db,
@@ -322,11 +321,38 @@ class _ShelfPageState extends State<ShelfPage> {
   }
 
   // ── 作家別（公式: 公開中 作家別作品一覧） ─────────────────────
-  Widget _authorList() {
+  Widget _authorList({bool wide = false}) {
     final authors = widget.db.authors(row: _row, initials: _kana?.$2);
     if (authors.isEmpty) {
       return const Center(
           child: Text('該当する作家がいません', style: TextStyle(color: Sumi.muted)));
+    }
+    if (wide) {
+      // デスクトップ: 選ぶと右の「作家別作品リスト」が切り替わる
+      return ListView.builder(
+        itemCount: authors.length,
+        itemBuilder: (context, i) {
+          final a = authors[i];
+          final sel = _selAuthor?.author == a.author;
+          return ListTile(
+            selected: sel,
+            selectedTileColor: Sumi.shu.withValues(alpha: .07),
+            title: Row(children: [
+              Flexible(
+                  child: Text(a.author,
+                      style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: sel ? Sumi.shu : Sumi.ink))),
+              const SizedBox(width: 8),
+              Text(a.authorYomi,
+                  style: const TextStyle(fontSize: 11, color: Sumi.muted)),
+            ]),
+            trailing: Text('${a.count}',
+                style: const TextStyle(color: Sumi.shu, fontSize: 12)),
+            onTap: () => setState(() => _selAuthor = a),
+          );
+        },
+      );
     }
     return ListView.builder(
       itemCount: authors.length,
@@ -428,7 +454,8 @@ class _ShelfPageState extends State<ShelfPage> {
 }
 
 
-/// 作家の紹介パネル（デスクトップ幅の作家別で右側に出す）。
+/// 作家別作品リスト（デスクトップ幅の作家別・公式の作家ページ準拠）。
+/// 作家データ（生没年・人物について）＋「公開中の作品」の番号付き一覧。
 /// 紹介文は図書カードの「作家」欄（青空文庫の作家データ・CC BY）から。
 /// キャッシュ済みカードを優先し、無ければ代表作1件ぶんをミラーから取得。
 class AuthorPanel extends StatefulWidget {
@@ -494,64 +521,108 @@ class _AuthorPanelState extends State<AuthorPanel> {
       return const Center(
           child: Padding(
         padding: EdgeInsets.all(24),
-        child: Text('作家を選ぶと、ここに紹介が出ます',
+        child: Text('作家を選ぶと、ここに作家別作品リストが出ます',
             style: TextStyle(color: Sumi.muted, fontSize: 13)),
       ));
     }
+    final works = widget.db.byAuthor(a.author, a.authorYomi);
     return Container(
       color: Sumi.paperHi,
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+      padding: const EdgeInsets.fromLTRB(24, 18, 24, 8),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('作家',
+        const Text('作家別作品リスト',
             style: TextStyle(
-                fontSize: 12, color: Sumi.shu, letterSpacing: 6,
+                fontSize: 12, color: Sumi.shu, letterSpacing: 4,
                 fontWeight: FontWeight.w600)),
         const SizedBox(height: 10),
-        Text(a.author,
-            style: const TextStyle(
-                fontSize: 22, fontWeight: FontWeight.w600, color: Sumi.ink)),
-        Text(a.authorYomi,
-            style: const TextStyle(fontSize: 12, color: Sumi.muted)),
-        const SizedBox(height: 6),
-        Text('公開中 ${a.count} 作品',
-            style: const TextStyle(fontSize: 12, color: Sumi.inkSoft)),
-        const Divider(height: 24, color: Sumi.rule),
+        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Text(a.author,
+              style: const TextStyle(
+                  fontSize: 22, fontWeight: FontWeight.w600, color: Sumi.ink)),
+          const SizedBox(width: 10),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 3),
+            child: Text(a.authorYomi,
+                style: const TextStyle(fontSize: 12, color: Sumi.muted)),
+          ),
+        ]),
+        const Divider(height: 22, color: Sumi.rule),
         Expanded(
           child: FutureBuilder<Map<String, dynamic>?>(
             future: _future,
             builder: (context, snap) {
-              if (snap.connectionState != ConnectionState.done) {
-                return const Center(
-                    child: SizedBox(
-                        width: 20, height: 20,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Sumi.shu)));
-              }
               final info = snap.data;
-              if (info == null) {
-                return const Text('紹介文はありません（図書カードを開くと取得されます）',
-                    style: TextStyle(fontSize: 12, color: Sumi.muted));
-              }
-              final born = '${info['生年'] ?? ''}';
-              final died = '${info['没年'] ?? ''}';
-              final about = '${info['人物について'] ?? ''}';
+              final born = '${info?['生年'] ?? ''}';
+              final died = '${info?['没年'] ?? ''}';
+              final about = '${info?['人物について'] ?? ''}';
               return ListView(children: [
                 if (born.isNotEmpty)
+                  Text('$born 〜 $died',
+                      style: const TextStyle(
+                          fontSize: 12.5, color: Sumi.inkSoft)),
+                if (about.isNotEmpty)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Text('$born 〜 $died',
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(about,
                         style: const TextStyle(
-                            fontSize: 12.5, color: Sumi.inkSoft)),
+                            fontSize: 13, height: 1.85, color: Sumi.ink)),
                   ),
-                Text(about.isEmpty ? '' : about,
+                const SizedBox(height: 14),
+                Text('公開中の作品（${works.length}）',
                     style: const TextStyle(
-                        fontSize: 13, height: 1.9, color: Sumi.ink)),
+                        fontSize: 13.5, fontWeight: FontWeight.w600,
+                        color: Sumi.shu)),
+                const SizedBox(height: 4),
+                for (var i = 0; i < works.length; i++)
+                  InkWell(
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => CardPage(
+                            work: works[i],
+                            db: widget.db,
+                            fetcher: widget.fetcher))),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 7),
+                      child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(
+                                width: 44,
+                                child: Text('${i + 1}.',
+                                    textAlign: TextAlign.right,
+                                    style: const TextStyle(
+                                        fontSize: 12, color: Sumi.muted))),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text.rich(TextSpan(children: [
+                                TextSpan(
+                                    text: works[i].title,
+                                    style: const TextStyle(
+                                        fontSize: 14, color: Sumi.ink)),
+                                TextSpan(
+                                    text: '　${works[i].titleYomi}',
+                                    style: const TextStyle(
+                                        fontSize: 11, color: Sumi.muted)),
+                              ])),
+                            ),
+                            if (works[i].readingCorpus)
+                              const Icon(Icons.record_voice_over,
+                                  size: 14, color: Sumi.muted),
+                            if (works[i].hasDoc)
+                              const Padding(
+                                padding: EdgeInsets.only(left: 6),
+                                child: Icon(Icons.download_done,
+                                    size: 14, color: Sumi.muted),
+                              ),
+                          ]),
+                    ),
+                  ),
+                const SizedBox(height: 10),
+                const Text('作家データの出典: 青空文庫（CC BY）',
+                    style: TextStyle(fontSize: 10, color: Sumi.muted)),
               ]);
             },
           ),
         ),
-        const Text('出典: 青空文庫の作家データ（CC BY）',
-            style: TextStyle(fontSize: 10, color: Sumi.muted)),
       ]),
     );
   }
