@@ -24,9 +24,11 @@ from .parser import parse, Document
 
 
 def read_text(src: str) -> str:
-    """Shift_JIS の注記付きテキストを読む。パス / zip / URL に対応。
+    """注記付きテキストを読む。パス / zip / URL に対応。
 
-    zip の場合は中の .txt を取り出す。文字コードは Shift_JIS（errors='replace'）。
+    zip の場合は中の .txt を取り出す。文字コードは自動判別:
+    UTF-8（BOM可）として正しく読めればそれを、だめなら青空文庫標準の
+    Shift_JIS（errors='replace'）で読む。
     """
     if src.startswith(('http://', 'https://')):
         data = urllib.request.urlopen(src).read()
@@ -36,7 +38,10 @@ def read_text(src: str) -> str:
         with zipfile.ZipFile(io.BytesIO(data)) as zf:
             name = next(n for n in zf.namelist() if n.endswith('.txt'))
             data = zf.read(name)
-    return data.decode('shift_jis', errors='replace')
+    try:
+        return data.decode('utf-8-sig')
+    except UnicodeDecodeError:
+        return data.decode('shift_jis', errors='replace')
 
 
 def convert(src: str, *, image_base: str = '') -> Document:

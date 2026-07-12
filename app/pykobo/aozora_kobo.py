@@ -7,6 +7,7 @@ aozora_kobo.py — 青空工房（工作員の作業台・Flet）
 （DESIGN.md ADR-4）。3つのタブ:
 
   検査 …… 作品の変換結果を点検（未対応注記・未解決外字〓・統計・プレビュー）
+  校正 …… 作業マニュアル準拠の機械チェック＋Claude校正＋作業履歴の生成
   資産 …… 読者アプリ(bunko)に同梱するデータ資産を作る（書架DB・目次JSON・外字フォント）
   検証 …… pybunko.official の公式XHTML再現を、ミラーの正解HTMLと突き合わせ（diff表示）
 
@@ -22,7 +23,9 @@ from pathlib import Path
 import flet as ft
 
 from pybunko import Library, Work, parse
+from pybunko.ai import ClaudeClient, locate, proofread
 from pybunko.gaiji import resolve_note_body
+from pybunko.kosei import lint, work_history
 
 # ================= 意匠（読者アプリと同じ和紙×朱） =================
 PAPER, PAPER_HI = '#E7E2D4', '#EEE9DC'
@@ -178,6 +181,130 @@ def main(page: ft.Page):
         ins_report,
     ], expand=True, spacing=8)
 
+    # ---------- 校正タブ ----------
+    # 作業マニュアル【入力編】【校正編】の点検をツール化。
+    # 機械チェック=即時（kosei.lint）、Claude校正=意味レベルの疑い（要APIキー）。
+    ko_state = {'text': '', 'name': ''}
+    ko_path = ft.TextField(label='校正するテキスト（.txt/.zipのパス。Shift_JIS/UTF-8自動）',
+                           dense=True, expand=True, bgcolor=PAPER_HI,
+                           on_submit=lambda e: ko_load())
+    ko_old = ft.Checkbox(label='旧字ファイル（新字の混入も検査）', value=False,
+                         label_style=ft.TextStyle(color=INK_SOFT, size=13),
+                         active_color=SHU, check_color=PAPER_HI)
+    ko_report = ft.ListView(expand=True, spacing=4, padding=10)
+    ko_busy = ft.ProgressRing(width=18, height=18, color=SHU, visible=False)
+    _claude = ClaudeClient()
+    ko_status = status_text(
+        'Claude: ' + (f'使用可（{_claude.model}）' if _claude.available
+                      else '未設定（環境変数 ANTHROPIC_API_KEY を設定すると使えます）'))
+
+    def ko_load() -> str | None:
+        from pybunko.convert import read_text
+        try:
+            ko_state['text'] = read_text(ko_path.value.strip())
+            ko_state['name'] = ko_path.value.strip()
+        except Exception as ex:
+            ko_status.value = f'読めませんでした: {ex}'
+            page.update()
+            return None
+        return ko_state['text']
+
+    def ko_finding_tile(line, rule, text, note, ai=False):
+        return ft.Container(ft.Column([
+            ft.Row([ft.Container(
+                        ft.Text(('Claude ' if ai else '') + rule, size=11,
+                                color=PAPER_HI),
+                        bgcolor=(SHU if ai else INK_SOFT), border_radius=999,
+                        padding=ft.Padding(8, 2, 8, 2)),
+                    ft.Text(f'{line}行' if line else '', size=11, color=MUTED)]),
+            ft.Text(text, size=13, color=INK, selectable=True),
+            ft.Text(note, size=11, color=MUTED),
+        ], spacing=2), bgcolor=PAPER_HI, border_radius=6, padding=8)
+
+    def ko_lint(e):
+        text = ko_load()
+        if text is None:
+            return
+        fs = lint(text, old_style=ko_old.value)
+        ko_report.controls = [
+            ko_finding_tile(f.line, f.rule, f.text, f.note) for f in fs
+        ] or [ft.Text('機械チェックは0件です。', color=OK)]
+        ko_status.value = (f'機械チェック {len(fs)} 件'
+                           '（疑い含む。必ず底本と突き合わせること）')
+        page.update()
+
+    def ko_claude(e):
+        text = ko_load()
+        if text is None:
+            return
+        if not _claude.available:
+            ko_status.value = 'ANTHROPIC_API_KEY が未設定です'
+            page.update()
+            return
+        ko_busy.visible = True
+        ko_report.controls = []
+        page.update()
+
+        def prog(done, total):
+            ko_status.value = f'Claude校正中… {done}/{total} 断片'
+            page.update()
+
+        def work():
+            try:
+                fs = locate(proofread(text, _claude, progress=prog), text)
+                ko_report.controls = [
+                    ko_finding_tile(f.get('line', 0), '校正の疑い',
+                                    f'{f["quote"]}　→　{f.get("suggestion") or "？"}',
+                                    f'{f.get("reason", "")}（採否は底本で判断）',
+                                    ai=True)
+                    for f in fs
+                ] or [ft.Text('Claudeからの指摘は0件です。', color=OK)]
+                ko_status.value = f'Claude校正完了: {len(fs)} 件の疑い'
+            except Exception as ex:
+                ko_status.value = f'Claude校正に失敗: {ex}'
+            finally:
+                ko_busy.visible = False
+                page.update()
+        page.run_thread(work)
+
+    ko_before = ft.TextField(label='修正前ファイル', dense=True, expand=True,
+                             bgcolor=PAPER_HI)
+    ko_after = ft.TextField(label='修正後ファイル', dense=True, expand=True,
+                            bgcolor=PAPER_HI)
+
+    def ko_history(e):
+        from pybunko.convert import read_text
+        try:
+            h = work_history(read_text(ko_before.value.strip()),
+                             read_text(ko_after.value.strip()))
+        except Exception as ex:
+            ko_status.value = f'読めませんでした: {ex}'
+            page.update()
+            return
+        ko_report.controls = [
+            ft.Text('作業履歴（reception宛メールに添えるファイルの下書き）',
+                    size=13, weight=ft.FontWeight.W_600, color=INK),
+            ft.Container(ft.Text(h, size=13, color=INK, selectable=True,
+                                 font_family='monospace'),
+                         bgcolor=PAPER_HI, border_radius=6, padding=10),
+        ]
+        ko_status.value = '作業履歴を作りました（コピーして保存してください）'
+        page.update()
+
+    tab_kosei = ft.Column([
+        ft.Row([ko_path, ko_busy]),
+        ft.Row([
+            ft.FilledButton('機械チェック', bgcolor=SHU, color=PAPER_HI,
+                            on_click=ko_lint),
+            ft.OutlinedButton('Claude校正（意味レベルの疑い）', on_click=ko_claude),
+            ko_old,
+        ], wrap=True),
+        ft.Row([ko_before, ko_after,
+                ft.OutlinedButton('作業履歴を生成', on_click=ko_history)]),
+        ko_status, ft.Divider(color=RULE),
+        ko_report,
+    ], expand=True, spacing=8)
+
     # ---------- 資産タブ ----------
     out_dir = ft.TextField(label='出力先ディレクトリ', value='assets_out',
                            dense=True, bgcolor=PAPER_HI, width=280)
@@ -318,14 +445,15 @@ def main(page: ft.Page):
     )
 
     tabs = ft.Tabs(
-        length=3,
+        length=4,
         expand=True,
         content=ft.Column([
-            ft.TabBar(tabs=[ft.Tab(label='検査'), ft.Tab(label='資産'),
-                            ft.Tab(label='検証')],
+            ft.TabBar(tabs=[ft.Tab(label='検査'), ft.Tab(label='校正'),
+                            ft.Tab(label='資産'), ft.Tab(label='検証')],
                       indicator_color=SHU, divider_color=RULE),
             ft.TabBarView(controls=[
                 ft.Container(tab_inspect, padding=16),
+                ft.Container(tab_kosei, padding=16),
                 ft.Container(tab_assets, padding=16),
                 ft.Container(tab_verify, padding=16),
             ], expand=True),

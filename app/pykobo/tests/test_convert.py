@@ -33,3 +33,14 @@ def test_cli_main(tmp_path):
     out = tmp_path / "m.json"
     assert main([MEROSU, "-o", str(out)]) == 0
     assert json.loads(out.read_text(encoding="utf-8"))['title'] == "走れメロス"
+
+
+def test_read_text_utf8_auto(tmp_path):
+    # UTF-8のファイルも自動判別で読める（工房の校正タブ用）
+    p = tmp_path / 'u.txt'
+    p.write_text('題《だい》\n', encoding='utf-8')
+    from pybunko.convert import read_text
+    assert read_text(str(p)) == '題《だい》\n'
+    s = tmp_path / 's.txt'
+    s.write_bytes('題《だい》\n'.encode('shift_jis'))
+    assert read_text(str(s)) == '題《だい》\n'

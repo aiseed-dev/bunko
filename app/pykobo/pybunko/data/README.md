@@ -21,3 +21,14 @@ JIS X 0213:2004 の面区点（men-ku-ten）→ Unicode 対応表（11,233件）
 - **出典**: aozora2html の `yml/accent_table.yml`（CC0-1.0）
 - **生成**: `tools/build_gaiji_table.py` が YAML をそのまま JSON 化（ビルド時のみ pyyaml 使用）。
 
+
+## kosei_ocr.txt
+
+OCRの読み取りミス・誤入力が生じやすい文字列のチェックリスト（正規表現、439パターン）。
+機械チェック（`pybunko.kosei.lint`）の「OCR誤読疑い」で使う。
+
+- **出典**: [青空文庫作業マニュアル【校正編】](https://www.aozora.gr.jp/aozora-manual/index-proofreading.html)
+  「5. 正規表現」に点検グループが公開しているリスト（GitHubミラー経由で取得）。
+- **ライセンス**: マニュアル本体は CC BY-NC 4.0。本ファイルはそのごく一部
+  （事実の列挙に近いチェックリスト）を、出典明記のうえ校正支援という
+  マニュアルの目的そのものに使う。営利再配布はしないこと。
