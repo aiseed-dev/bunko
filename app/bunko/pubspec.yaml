@@ -77,6 +77,7 @@ flutter:
     - assets/jis2ucs.json
     - assets/cp932.bin
     - assets/fonts/IPA_Font_License.txt
+    - assets/dojinshi_directory.json
 
   fonts:
     - family: IPAexMincho

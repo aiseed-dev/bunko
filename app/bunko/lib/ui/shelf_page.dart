@@ -12,6 +12,7 @@ import 'package:http/http.dart' as http;
 
 import '../data/db.dart';
 import 'reader_page.dart';
+import '../data/dojinshi_directory.dart';
 import '../data/fetch.dart';
 import '../data/models.dart';
 import '../data/my_library.dart';
@@ -68,7 +69,13 @@ String ndcSubLabel(String code) {
   return label == null ? code : '$code $label';
 }
 
-enum ShelfMode { author, title, ndc, added } // 作家別 / 作品別 / 分野別 / 追加した作品
+enum ShelfMode {
+  author,
+  title,
+  ndc,
+  added,
+  dojinshi,
+} // 作家別 / 作品別 / 分野別 / 追加した作品 / 同人誌ひろば
 
 /// 作品を開く —— 常に読書画面へ直行。図書カードはデスクトップでは
 /// 左サイドバー、スマホではAppBarのバッジからボトムシートで見る。
@@ -95,6 +102,7 @@ class _ShelfPageState extends State<ShelfPage> {
   String? _ndcSub; // 分野別: 選択中の3桁分類（null=類全体）
   String _query = '';
   List<AddedWork> _added = [];
+  List<DojinshiEntry>? _dojinshi; // null=読み込み中
 
   void _setRow(String row) => setState(() {
         _row = row;
@@ -105,11 +113,21 @@ class _ShelfPageState extends State<ShelfPage> {
   void initState() {
     super.initState();
     _loadAdded();
+    _loadDojinshi();
   }
 
   Future<void> _loadAdded() async {
     final list = await MyLibrary.load();
     if (mounted) setState(() => _added = list);
+  }
+
+  Future<void> _loadDojinshi() async {
+    try {
+      final list = await loadDojinshiDirectory();
+      if (mounted) setState(() => _dojinshi = list);
+    } catch (_) {
+      if (mounted) setState(() => _dojinshi = []);
+    }
   }
 
   @override
@@ -120,6 +138,7 @@ class _ShelfPageState extends State<ShelfPage> {
       ShelfMode.title => '作品別一覧',
       ShelfMode.ndc => '分野別リスト',
       ShelfMode.added => '追加した作品（各自の公開先）',
+      ShelfMode.dojinshi => '同人誌ひろば（個人出版の紹介コーナー）',
     };
     return Scaffold(
       appBar: AppBar(
@@ -165,6 +184,8 @@ class _ShelfPageState extends State<ShelfPage> {
                     value: ShelfMode.added,
                     label: Text(
                         _added.isEmpty ? '追加した作品' : '追加した作品（${_added.length}）')),
+                ButtonSegment(
+                    value: ShelfMode.dojinshi, label: Text('同人誌ひろば')),
               ],
               selected: {_mode},
               showSelectedIcon: false,
@@ -253,7 +274,8 @@ class _ShelfPageState extends State<ShelfPage> {
         ],
         if (_query.isEmpty &&
             _mode != ShelfMode.ndc &&
-            _mode != ShelfMode.added) ...[
+            _mode != ShelfMode.added &&
+            _mode != ShelfMode.dojinshi) ...[
           // 五十音の行（公式: あ行〜わ行）
           SizedBox(
             height: 44,
@@ -322,13 +344,16 @@ class _ShelfPageState extends State<ShelfPage> {
             final wide = box.maxWidth >= 980;
             final twoPane =
                 wide && _mode == ShelfMode.author && _query.isEmpty;
-            final body = _query.isNotEmpty && _mode != ShelfMode.added
+            final body = _query.isNotEmpty &&
+                    _mode != ShelfMode.added &&
+                    _mode != ShelfMode.dojinshi
                 ? _searchList()
                 : switch (_mode) {
                     ShelfMode.author => _authorList(wide: twoPane),
                     ShelfMode.title => _titleList(),
                     ShelfMode.ndc => _ndcList(),
                     ShelfMode.added => _addedList(),
+                    ShelfMode.dojinshi => _dojinshiList(),
                   };
             if (!twoPane) return body;
             return Row(crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -465,6 +490,64 @@ class _ShelfPageState extends State<ShelfPage> {
             onPressed: () => _removeAdded(w),
           ),
           onTap: () => _openAdded(w),
+        );
+      },
+    );
+  }
+
+  // ── 同人誌ひろば（個人出版の紹介・追跡なし・作者自身の申請のみ掲載） ──
+  // 一覧はbunkoリポのassets/dojinshi_directory.json 1枚（作者がPRで1件足す）。
+  // 広告ネットワークは使わない＝このアプリの「一切外部送信しない」設計を維持。
+  Future<void> _openDojinshi(DojinshiEntry e) async {
+    try {
+      final res = await http.get(Uri.parse(e.url));
+      if (res.statusCode != 200) {
+        throw Exception('取得できませんでした (${res.statusCode})');
+      }
+      final j = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      final doc = Doc.fromJson(j);
+      if (!mounted) return;
+      await Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => ExternalReaderPage(doc: doc, sourceUrl: e.url)));
+      _loadAdded();
+    } catch (ex) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('開けませんでした: $ex')));
+    }
+  }
+
+  Widget _dojinshiList() {
+    final list = _dojinshi;
+    if (list == null) {
+      return const Center(child: CircularProgressIndicator(color: Sumi.shu));
+    }
+    if (list.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+              '個人出版した作品を紹介する無償のコーナーです（広告ネットワークは\n'
+              '使いません・追跡もしません）。まだ紹介作品がありません。\n'
+              '掲載を希望する方はbunkoリポのPRで\n'
+              'assets/dojinshi_directory.json に1件追加してください。',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Sumi.muted, fontSize: 13)),
+        ),
+      );
+    }
+    return ListView.separated(
+      itemCount: list.length,
+      separatorBuilder: (c, i) => const Divider(height: 1),
+      itemBuilder: (context, i) {
+        final e = list[i];
+        return ListTile(
+          title: Text(e.title),
+          subtitle: Text('${e.author}${e.blurb.isNotEmpty ? '　${e.blurb}' : ''}',
+              style: const TextStyle(fontSize: 12, color: Sumi.muted),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis),
+          onTap: () => _openDojinshi(e),
         );
       },
     );
