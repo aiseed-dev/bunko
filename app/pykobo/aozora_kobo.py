@@ -30,8 +30,7 @@ from pathlib import Path
 import flet as ft
 
 from kobo_theme import (BODY, CAPTION, FONT_FAMILY, INK, INK_SOFT, MUTED, OK,
-                        PAPER, PAPER_HI, RULE, SHU, SMALL, TITLE, WARN,
-                        make_theme)
+                        PAPER, PAPER_HI, RULE, SHU, SMALL, WARN, make_theme)
 from pybunko import Library, Work, parse
 from pybunko.ai import ClaudeClient, locate, proofread
 from pybunko.gaiji import resolve_note_body
@@ -304,6 +303,12 @@ def main(page: ft.Page):
     # （メニューの中でだけ扱う ── 昔のワープロの流儀）
     ed_state = {'filename': 'draft.txt', 'enc': 'utf-8', 'mode': 'normal'}
 
+    def _update_doc_title():
+        # ウェブサイトではないのでバナーは持たず、ウィンドウ/タブのタイトルに
+        # 現在のファイル名を出す（普通のエディタと同じ作法）
+        page.title = f"{ed_state['filename']} ── 青空工房"
+    _update_doc_title()
+
     def _washi_opts():
         """組版モード → washi renderの引数と用紙向き。
         ふつう: A4縦・24px ≈ 40字/列。原稿用紙: A4横・24px = マス約6.4mm。"""
@@ -516,6 +521,7 @@ def main(page: ft.Page):
         _ed_push_undo()
         ed_text.value = ''
         ed_state['filename'] = 'draft.txt'
+        _update_doc_title()
         ed_status.value = '新規作成しました'
         _ed_update_status()
         page.update()
@@ -547,6 +553,7 @@ def main(page: ft.Page):
             _ed_push_undo()
             ed_text.value = text
             ed_state['filename'] = f.name
+            _update_doc_title()
             _ed_last_snapshot['v'] = text
             ed_status.value = f'開きました: {f.name}'
             _ed_update_status()
@@ -584,6 +591,7 @@ def main(page: ft.Page):
             if not str(path).startswith('upload'):  # デスクトップ: 実パス
                 Path(path).write_bytes(data)
             ed_state['filename'] = Path(path).name
+            _update_doc_title()
             _ed_last_snapshot['v'] = text
             ed_status.value = f'保存しました: {path}（{ed_state["enc"]}）'
         except Exception as ex:
@@ -1221,15 +1229,8 @@ def main(page: ft.Page):
     ], expand=True, spacing=8)
 
     # ---------- 全体 ----------
-    header = ft.Container(
-        ft.Column([
-            ft.Text('青空工房', size=TITLE, weight=ft.FontWeight.W_600, color=INK),
-            ft.Text('書く・整える・届ける ── 執筆・入力・校正・検査・資産・検証（日本語ワープロ＋工作員の作業台）',
-                    size=SMALL, color=MUTED),
-        ], spacing=2),
-        padding=ft.Padding(20, 14, 20, 10), bgcolor=PAPER_HI,
-    )
-
+    # ウェブサイトではないのでアプリ名バナーは持たない。現在のファイル名は
+    # ウィンドウ/タブのタイトルに出す（_update_doc_title）── 普通のエディタの作法。
     tabs = ft.Tabs(
         length=6,
         expand=True,
@@ -1252,7 +1253,7 @@ def main(page: ft.Page):
         ], expand=True),
     )
 
-    page.add(header, tabs)
+    page.add(tabs)
 
 
 if __name__ == '__main__':
