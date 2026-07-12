@@ -26,6 +26,48 @@ from pathlib import Path
 
 _DATA = Path(__file__).parent / 'data'
 
+_JISHO: dict | None = None
+_MKT: dict | None = None
+
+
+def _jisho() -> dict:
+    """外字注記辞書（文字→直し方）。data/README.md に出典。"""
+    global _JISHO
+    if _JISHO is None:
+        _JISHO = json.loads((_DATA / 'gaiji_jisho.json').read_text('utf-8'))
+    return _JISHO
+
+
+def _mkt() -> dict:
+    """実文字→JIS X 0213面区点（jis2ucsの逆引き。1文字対応のみ）。"""
+    global _MKT
+    if _MKT is None:
+        tbl = json.loads((_DATA / 'jis2ucs.json').read_text('utf-8'))
+        _MKT = {ch: mkt for mkt, ch in tbl.items() if len(ch) == 1}
+    return _MKT
+
+
+def _gaiji_hint(ch: str) -> str:
+    """JIS X 0208 に無い文字の「直し方」。外字注記辞書と面区点逆引きから。"""
+    e = _jisho().get(ch)
+    if e and 'to' in e:
+        to, kind = e['to'], e['kind']
+        if to.startswith('※'):
+            return f'「{ch}」は{kind}。外字注記に: {to}'
+        return f'「{ch}」→「{to}」に置き換える（{kind}、外字注記辞書）'
+    if e:
+        note = e['note']
+        extra = '（ページ数-行数は底本に合わせる）' if 'ページ数-行数' in note else ''
+        return f'「{ch}」は外字注記に{extra}: {note}'
+    mkt = _mkt().get(ch)
+    if mkt:
+        lvl = '第3水準' if mkt.startswith('1-') else '第4水準'
+        return (f'「{ch}」はJIS X 0213 {lvl}{mkt}。'
+                f'外字注記に: ※［＃「〓」、{lvl}{mkt}］（〓は字の説明に）')
+    name = unicodedata.name(ch, f'U+{ord(ch):04X}')
+    return (f'「{ch}」（{name}）は JIS X 0208 に無い'
+            '（包摂適用か外字注記に。外字注記辞書を参照）')
+
 
 @dataclass
 class Finding:
@@ -57,11 +99,8 @@ def charset_errors(text: str) -> list[Finding]:
             try:
                 ch.encode('shift_jis')
             except UnicodeEncodeError:
-                name = unicodedata.name(ch, f'U+{ord(ch):04X}')
-                out.append(Finding(
-                    ln, '文字コード', _clip(line, ch),
-                    f'「{ch}」（{name}）は JIS X 0208 に無い'
-                    '（包摂適用か外字注記に。外字注記辞書を参照）'))
+                out.append(Finding(ln, '文字コード', _clip(line, ch),
+                                   _gaiji_hint(ch)))
     return out
 
 

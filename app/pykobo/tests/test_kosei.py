@@ -77,3 +77,15 @@ def test_work_history_window_and_empty():
     h = work_history(before, after)
     assert '【鳴】' in h and '…' in h and len(h) < 60
     assert work_history('同じ\n', '同じ\n') == '修正点はありませんでした。\n'
+
+
+def test_charset_suggests_fix():
+    # マニュアルの例そのまま: 靑 → 包摂適用で「青」
+    fs = charset_errors('彼は靑い空を見た。\n')
+    assert '「靑」→「青」に置き換える（包摂適用、外字注記辞書）' in fs[0].note
+    # 面区点のある字 → コピーできる外字注記を提示
+    fs = charset_errors('帘をくぐる\n')
+    assert '※［＃「穴かんむり／巾」、第3水準1-84-10］' in fs[0].note
+    # 辞書に無いが JIS X 0213 にはある字 → 面区点を提示
+    fs = charset_errors('雪だるま☃\n')
+    assert '第3水準1-06-75' in fs[0].note
