@@ -1,4 +1,4 @@
-"""kobo_theme.py — 青空工房のテーマ（Flutter側 theme.dart と対）。
+"""kobo_theme.py — AISeed工房のテーマ（Flutter側 theme.dart と対）。
 
 規約: **文字サイズを size= で直書きしない**。ここで定めた意味付き定数
 （BODY/SMALL/CAPTION/TITLE）か、テーマ既定（sizeなし=16）を使う。

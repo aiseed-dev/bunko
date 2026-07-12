@@ -219,7 +219,7 @@ pytest
 | 対象 | 技術 | このライブラリとの接点 |
 |---|---|---|
 | **読者アプリ** | **Flutter**（Web/iOS/Android/デスクトップ） | Pythonは実行時に呼ばない。`build_sqlite` で作った **aozora.db**（メタ＋doc/card JSON列）と、`python -m pybunko.fonts` の**外字フォント**を同梱して描くだけ |
-| **工作員ツール** | **Flet**（Python） | ライブラリを**直接 import**。変換確認・外字チェック・DB構築・ゴールデン検証。app/pykobo（青空工房）がその置き場 |
+| **工作員ツール** | **Flet**（Python） | ライブラリを**直接 import**。変換確認・外字チェック・DB構築・ゴールデン検証。app/pykobo（AISeed工房）がその置き場 |
 
 読者向けの成果物は「データ資産」:
 
@@ -273,8 +273,8 @@ SBV2のコードはAGPL＝本プロジェクトと同系）。
 |---|---|
 | **pybunko**（本体） | 正本→Unicode Document→JSON/SQLite/各形式（このマニュアル） |
 | **pybunko.official** | 公式XHTML再現（検証・凍結維持）＋外字フォント資産づくり |
-| app/**pykobo** | **Flet 工作員アプリ「青空工房」**（検査・資産・検証＋EPUB・TTS） |
-| app/**bunko** | **Flutter 読者アプリ「文庫」**（aozora.db＋フォント同梱・全OS足場） |
+| app/**pykobo** | **Flet 工作員アプリ「AISeed工房」**（検査・資産・検証＋EPUB・TTS） |
+| app/**bunko** | **Flutter 読者アプリ「AISeed文庫」**（aozora.db＋フォント同梱・全OS足場） |
 | aiseed-dev/**washi-md** | Markdown→縦書き・PDF組版（`[washi]`で委譲） |
 | aiseed-dev/**mdit-py-cjk-friendly** | CJK対応 markdown-it-py（ルビ・傍点bouten） |
 | aiseed-dev/**flutter_svg_cjk_friendly** | FlutterのSVG CJK/縦書き補助 |

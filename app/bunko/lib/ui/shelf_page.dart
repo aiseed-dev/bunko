@@ -108,7 +108,7 @@ class _ShelfPageState extends State<ShelfPage> {
       appBar: AppBar(
         titleSpacing: 20,
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('文庫',
+          const Text('AISeed文庫',
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600)),
           Text('青空文庫　公開中　$modeLabel ── ${st.authors} 作家 ／ ${st.works} 作品',
               style: const TextStyle(fontSize: 11, color: Sumi.muted)),

@@ -8,7 +8,7 @@
 bunko/
 ├── app/bunko/        # Flutter 読者アプリ（web/linux/android/ios/macos/windows）
 │   └── assets -> ../../assets   # symlink（Flutterはリポ外パスを参照できないため）
-├── app/pykobo/       # 青空工房 ── Flet 工作員アプリ
+├── app/pykobo/       # AISeed工房 ── Flet 工作員アプリ
 │   ├── pybunko/      #   Python側の全コード（中核＋official＋fonts・98テスト）
 │   └── tests/        #   ※PyPIには個別登録しない（ローカル編集インストール専用）
 ├── assets/           # 共有データ資産（aozora.db・IPAex明朝・jis2ucs.json・cp932.bin）
@@ -77,7 +77,7 @@ bunko/
 | リポジトリ | 層 | 責務 | 状態 |
 |---|---|---|---|
 | bunko/**app/pykobo/pybunko** | 変換・データ | 正本→Document(Unicode)→JSON/SQLite/EPUB/…。カタログ・図書カード・official・fonts。**中核**（PyPI個別登録はしない） | 98テスト |
-| **bunko** | 読者＋資産＋docs | **モノレポ**: app/bunko=Flutter読者アプリ（dev.aiseed.bunko）／app/pykobo/pybunko=Python側一体（中核＋official＋fonts・PyPI個別登録なし）／assets/=共有データ資産／app/pykobo=Flet工作員ツール「青空工房」／tools/=開発スクリプト／docs/=正本 | 13＋98テスト |
+| **bunko** | 読者＋資産＋docs | **モノレポ**: app/bunko=Flutter読者アプリ（dev.aiseed.bunko）／app/pykobo/pybunko=Python側一体（中核＋official＋fonts・PyPI個別登録なし）／assets/=共有データ資産／app/pykobo=Flet工作員ツール「AISeed工房」／tools/=開発スクリプト／docs/=正本 | 13＋98テスト |
 | aiseed-dev/washi-md | 組版 | Markdown→縦書き/原稿用紙/PDF（[washi]で委譲） | 23テスト |
 | aiseed-dev/mdit-py-cjk-friendly | 組版基盤 | CJK対応 markdown-it-py（ルビ・傍点bouten） | 52テスト |
 | aiseed-dev/flutter_svg_cjk_friendly | Flutter補助 | SVGのCJK font/縦書き修正（Flutterアプリで必要時） | — |
@@ -149,7 +149,7 @@ works(work_id PK, title, title_yomi, author, author_yomi,
    `pybunko.vision`）が青空文庫注記形式の下書きに書き起こす → 機械チェック
    （`pybunko.kosei`）→ Claude校正。従来の「スキャナ＋OCR＋手修正」の置き換え
 
-### 6.2 Flet 工作員アプリ（app/pykobo ── 青空工房）
+### 6.2 Flet 工作員アプリ（app/pykobo ── AISeed工房）
 
 - **役割**: 読者向けではなく**工作員（入力・校正・保守）向け**。Pythonパイプラインを直接呼ぶ。
   - 新規作品の変換確認: 注記テキスト → Document → プレビュー（未対応注記の検出）
@@ -163,7 +163,7 @@ works(work_id PK, title, title_yomi, author, author_yomi,
 
 1. ~~Flutter 読者アプリの起工~~ → **完成（bunko v0.1.0）**。次: Android/iOSビルド・
    Web版のIndexedDB永続化・縦書きの禁則/挿絵対応・アプリ内の底本更新
-2. ~~Flet 工作員ツールの再構成~~ → **完成（青空工房 aozora_kobo.py）**: 検査/資産/検証の3タブ
+2. ~~Flet 工作員ツールの再構成~~ → **完成（AISeed工房 aozora_kobo.py）**: 検査/資産/検証の3タブ
 2.5 朗読パック: 生成側は**完成**（pybunko.audio ── VOICEVOX/edge-tts→Opus＋段落manifest）。
     アプリ側の再生（just_audio等＋manifestシーク・ハイライト同期、端末TTSへのフォールバック）が次
 3. 共著の正規化（work_authors テーブル）が必要になったら追加

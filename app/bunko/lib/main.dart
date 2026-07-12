@@ -43,7 +43,7 @@ class BunkoApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '文庫',
+      title: 'AISeed文庫',
       theme: bunkoTheme(),
       debugShowCheckedModeBanner: false,
       home: FutureBuilder(
@@ -57,7 +57,7 @@ class BunkoApp extends StatelessWidget {
             return const Scaffold(
               body: Center(
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Text('文庫',
+                  Text('AISeed文庫',
                       style: TextStyle(
                           fontSize: 42,
                           fontWeight: FontWeight.w600,

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-aozora_kobo.py — 青空工房（工作員の作業台・Flet）
+aozora_kobo.py — AISeed工房（工作員の作業台・Flet）
 
 工作員（入力・校正・保守）と書き手のための統合ツール ── 昔の日本語
 ワープロの現代版（テキストで書き、組版で確かめ、紙とデータに出す）。
@@ -133,7 +133,7 @@ def golden_check(work: Work) -> dict:
 # ================= GUI =================
 
 def main(page: ft.Page):
-    page.title = '青空工房 ── 工作員の作業台'
+    page.title = 'AISeed工房 ── 工作員の作業台'
     page.fonts = {FONT_FAMILY: 'fonts/ipaexm.ttf'}  # assets/ から（外字込み）
     page.theme = make_theme()
     page.theme_mode = ft.ThemeMode.LIGHT
@@ -153,7 +153,7 @@ def main(page: ft.Page):
     def _update_doc_title():
         # ウェブサイトではないのでバナーは持たず、ウィンドウ/タブのタイトルに
         # 現在のファイル名を出す（普通のエディタと同じ作法）
-        page.title = f"{ed_state['filename']} ── 青空工房"
+        page.title = f"{ed_state['filename']} ── AISeed工房"
     _update_doc_title()
 
     def _washi_opts():

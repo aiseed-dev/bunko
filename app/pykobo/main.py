@@ -1,4 +1,4 @@
-"""main.py — 青空工房の入口（`flet run` はこのファイルを探す）。
+"""main.py — AISeed工房の入口（`flet run` はこのファイルを探す）。
 
 デスクトップ:  flet run          （または python main.py）
 Web/スマフォ:  KOBO_PORT=8790 python main.py
