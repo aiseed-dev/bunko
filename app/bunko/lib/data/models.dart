@@ -46,6 +46,7 @@ class Para {
   final int jizume;
   final List<Deco> decos;
   final ParaImage? image;
+  final String? pb; // 改丁sheet/改ページpage/改段column/左右中央center
 
   const Para({
     required this.segs,
@@ -57,6 +58,7 @@ class Para {
     this.jizume = 0,
     this.decos = const [],
     this.image,
+    this.pb,
   });
 
   String get plain => segs.map((s) => s.t).join();
@@ -78,6 +80,7 @@ class Para {
         image: j['image'] == null
             ? null
             : ParaImage.fromJson(j['image'] as Map<String, dynamic>),
+        pb: j['pb'] as String?,
       );
 
   Map<String, dynamic> toJson() => {
@@ -90,6 +93,7 @@ class Para {
         if (jizume != 0) 'jizume': jizume,
         if (decos.isNotEmpty) 'deco': [for (final d in decos) d.toJson()],
         if (image != null) 'image': image!.toJson(),
+        if (pb != null) 'pb': pb,
       };
 }
 

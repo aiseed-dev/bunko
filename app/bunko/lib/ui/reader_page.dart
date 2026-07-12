@@ -15,6 +15,7 @@ import '../data/fetch.dart';
 import '../data/models.dart';
 import '../data/toc.dart';
 import '../theme.dart';
+import 'audiobook_controller.dart';
 import 'ruby_text.dart';
 import 'tts_controller.dart';
 import 'vertical_reader.dart';
@@ -44,20 +45,31 @@ class _ReaderPageState extends State<ReaderPage> {
   final _vScroll = ScrollController();
   VerticalLayout? _vLayout;
 
-  // 読み上げ
+  // 読み上げ（端末TTS）と朗読パック（事前合成audiobook）
   final ReaderTts? _tts = ttsSupported ? ReaderTts() : null;
+  final ReaderAudiobook _book = ReaderAudiobook();
+  bool _bookReady = false; // パックが見つかった
+  bool _bookOpen = false; // 再生バーを開いている
+  final ValueNotifier<int?> _hl = ValueNotifier(null); // 段落ハイライト（TTS/朗読の合流）
 
   @override
   void initState() {
     super.initState();
     _docFuture = _load();
     _tts?.current.addListener(_followTts);
+    _book.current.addListener(_followBook);
+    _book.load(widget.work.workId).then((ok) {
+      if (ok && mounted) setState(() => _bookReady = true);
+    });
   }
 
   @override
   void dispose() {
     _tts?.current.removeListener(_followTts);
     _tts?.dispose();
+    _book.current.removeListener(_followBook);
+    _book.dispose();
+    _hl.dispose();
     _vScroll.dispose();
     super.dispose();
   }
@@ -113,8 +125,16 @@ class _ReaderPageState extends State<ReaderPage> {
 
   void _followTts() {
     final i = _tts?.current.value;
+    _hl.value = i ?? _book.current.value;
     if (i != null && mounted) _jumpTo(i);
     if (mounted) setState(() {}); // 縦書きハイライト・再生アイコン更新
+  }
+
+  void _followBook() {
+    final i = _book.current.value;
+    _hl.value = _tts?.current.value ?? i;
+    if (i != null && mounted) _jumpTo(i);
+    if (mounted) setState(() {});
   }
 
   // ── 目次シート（公式の目次パネル準拠: 見出し階層のみ＋現在位置しおり） ──
@@ -227,6 +247,22 @@ class _ReaderPageState extends State<ReaderPage> {
             icon: const Icon(Icons.toc),
             onPressed: _doc == null ? null : () => _showToc(_doc!),
           ),
+          if (_bookReady)
+            IconButton(
+              tooltip: _bookOpen ? '朗読を閉じる' : '朗読パックを聴く（事前合成の音声）',
+              icon: Icon(_bookOpen ? Icons.headset_off : Icons.headset,
+                  color: _bookOpen ? Sumi.shu : null),
+              onPressed: () async {
+                if (_bookOpen) {
+                  await _book.stop();
+                  setState(() => _bookOpen = false);
+                } else {
+                  _tts?.stop();
+                  setState(() => _bookOpen = true);
+                  await _book.toggle();
+                }
+              },
+            ),
           if (_tts != null)
             IconButton(
               tooltip: playing ? '読み上げを止める' : 'ここから読み上げ（ルビの読みで朗読）',
@@ -265,6 +301,12 @@ class _ReaderPageState extends State<ReaderPage> {
           ),
         ],
       ),
+      bottomNavigationBar: (_bookReady && _bookOpen)
+          ? _AudiobookBar(book: _book, onClose: () async {
+              await _book.stop();
+              setState(() => _bookOpen = false);
+            })
+          : null,
       body: FutureBuilder<Doc>(
         future: _docFuture,
         builder: (context, snap) {
@@ -293,7 +335,7 @@ class _ReaderPageState extends State<ReaderPage> {
                 doc: doc,
                 fontSize: _fontSize,
                 controller: _vScroll,
-                highlightPara: _tts?.current.value,
+                highlightPara: _hl.value,
                 onLayout: (l) => _vLayout = l,
               ),
             );
@@ -305,7 +347,7 @@ class _ReaderPageState extends State<ReaderPage> {
               fontSize: _fontSize,
               itemScroll: _itemScroll,
               itemPositions: _itemPositions,
-              ttsCurrent: _tts?.current,
+              ttsCurrent: _hl,
             ),
           );
         },
@@ -378,6 +420,22 @@ class _HorizontalReader extends StatelessWidget {
   }
 
   Widget _paragraph(Para p, TextStyle base) {
+    if (p.pb != null) {
+      // 改丁・改ページ・改段: 読書UIでは控えめな区切り
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 26),
+        child: Row(children: [
+          const Expanded(child: Divider(color: Sumi.rule)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Text('※',
+                style: TextStyle(
+                    fontSize: base.fontSize! * 0.7, color: Sumi.muted)),
+          ),
+          const Expanded(child: Divider(color: Sumi.rule)),
+        ]),
+      );
+    }
     if (p.image != null) {
       final img = p.image!;
       return Padding(
@@ -416,6 +474,71 @@ class _HorizontalReader extends StatelessWidget {
                       EdgeInsets.only(right: p.alignOffset * base.fontSize!),
                   child: text))
           : text,
+    );
+  }
+}
+
+/// 朗読パックの再生バー（下端固定）: 再生/停止・シーク・残り時間。
+class _AudiobookBar extends StatelessWidget {
+  final ReaderAudiobook book;
+  final VoidCallback onClose;
+  const _AudiobookBar({required this.book, required this.onClose});
+
+  String _fmt(double sec) {
+    final s = sec.round();
+    return '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final total = book.book?.total ?? 0;
+    return Material(
+      color: Sumi.paperHi,
+      child: SafeArea(
+        child: SizedBox(
+          height: 56,
+          child: StreamBuilder<Duration>(
+            stream: book.positionStream,
+            builder: (context, snap) {
+              final pos = (snap.data ?? Duration.zero).inMilliseconds / 1000.0;
+              return Row(children: [
+                const SizedBox(width: 4),
+                StreamBuilder(
+                  stream: book.stateStream,
+                  builder: (context, _) => IconButton(
+                    icon: Icon(
+                        book.playing
+                            ? Icons.pause_circle_filled
+                            : Icons.play_circle_fill,
+                        color: Sumi.shu,
+                        size: 34),
+                    onPressed: () => book.toggle(),
+                  ),
+                ),
+                Text(_fmt(pos),
+                    style: const TextStyle(fontSize: 11, color: Sumi.muted)),
+                Expanded(
+                  child: Slider(
+                    value: pos.clamp(0, total),
+                    max: total <= 0 ? 1 : total,
+                    activeColor: Sumi.shu,
+                    inactiveColor: Sumi.rule,
+                    onChanged: (v) => book.seek(
+                        Duration(microseconds: (v * 1e6).round())),
+                  ),
+                ),
+                Text(_fmt(total),
+                    style: const TextStyle(fontSize: 11, color: Sumi.muted)),
+                IconButton(
+                    icon: const Icon(Icons.close, size: 18, color: Sumi.muted),
+                    tooltip: '朗読を閉じる',
+                    onPressed: onClose),
+                const SizedBox(width: 4),
+              ]);
+            },
+          ),
+        ),
+      ),
     );
   }
 }

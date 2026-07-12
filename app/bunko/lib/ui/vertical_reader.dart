@@ -82,6 +82,11 @@ class VerticalLayout {
 
     for (final p in paras) {
       final paraStartCol = col;
+      if (p.pb != null) {
+        newColumn(2); // 改ページ・改丁: 二列空けて区切る
+        paraCols.add((col, col));
+        continue;
+      }
       if (p.image != null) {
         paraCols.add((col, col));
         continue; // v1: 縦書きでは挿絵スキップ

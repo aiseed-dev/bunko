@@ -8,6 +8,7 @@ aozora_kobo.py — 青空工房（工作員の作業台・Flet）
 
   入力 …… 底本ページの写真（スマフォのカメラ可）→ VLMで注記テキストの下書き
   検査 …… 作品の変換結果を点検（未対応注記・未解決外字〓・統計・プレビュー）
+          一括点検＝作品を横断して未対応注記の頻度統計（対応の優先順位を決める）
   校正 …… 作業マニュアル準拠の機械チェック＋Claude校正＋作業履歴の生成
   資産 …… 読者アプリ(bunko)に同梱するデータ資産を作る（書架DB・目次JSON・外字フォント）
   検証 …… pybunko.official の公式XHTML再現を、ミラーの正解HTMLと突き合わせ（diff表示）
@@ -188,10 +189,55 @@ def main(page: ft.Page):
         ins_status.value = f'点検完了: {doc.title}'
         page.update()
 
+    ins_census_limit = ft.TextField(label='一括点検の作品数', value='300',
+                                    dense=True, width=140, bgcolor=PAPER_HI)
+    ins_busy = ft.ProgressRing(width=18, height=18, color=SHU, visible=False)
+
+    def ins_census(e):
+        ins_busy.visible = True
+        ins_report.controls = []
+        page.update()
+
+        def prog(done, total):
+            if done % 10 == 0 or done == total:
+                ins_status.value = f'一括点検中… {done}/{total} 作品'
+                page.update()
+
+        def work():
+            try:
+                from pybunko.census import census
+                rep = census(limit=int(ins_census_limit.value or 300),
+                             progress=prog)
+                rows = [ft.Text(
+                    f"一括点検: {rep['scanned']}作品を走査 ── "
+                    f"未対応注記 {len(rep['unknown'])}パターン・"
+                    f"未解決外字 {len(rep['gaiji_unresolved'])}パターン",
+                    size=15, weight=ft.FontWeight.W_600, color=INK)]
+                for x in rep['unknown'][:40]:
+                    rows.append(ft.Container(ft.Column([
+                        ft.Text(f"［＃{x['pattern']}］　×{x['count']}回"
+                                f"／{x['works']}作品",
+                                size=13, color=INK, selectable=True),
+                        ft.Text(f"例: {x['example'][:80]}",
+                                size=11, color=MUTED),
+                    ], spacing=2), bgcolor=PAPER_HI, border_radius=6,
+                        padding=8))
+                ins_report.controls = rows
+                ins_status.value = '一括点検が終わりました（頻度順＝対応の優先順位）'
+            except Exception as ex:
+                ins_status.value = f'一括点検に失敗: {ex}'
+            finally:
+                ins_busy.visible = False
+                page.update()
+        page.run_thread(work)
+
     tab_inspect = ft.Column([
         ft.Row([ins_query,
                 ft.FilledButton('検索', bgcolor=SHU, color=PAPER_HI,
-                                on_click=lambda e: ins_search())]),
+                                on_click=lambda e: ins_search()),
+                ft.OutlinedButton('一括点検（未対応注記の統計）',
+                                  on_click=ins_census),
+                ins_census_limit, ins_busy]),
         ins_status, ins_results, ft.Divider(color=RULE),
         ins_report,
     ], expand=True, spacing=8)

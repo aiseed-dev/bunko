@@ -60,6 +60,11 @@ class AozoraParser {
   static final _menkutenRe = RegExp(r'([12])-(\d{1,2})-(\d{1,2})');
   static final _uplusRe = RegExp(r'[Uu]\+([0-9A-Fa-f]{4,6})');
   static final _noteRe = RegExp(r'［＃[^］]*］');
+  static final _pbRe = RegExp(r'^［＃(改丁|改ページ|改段|ページの左右中央)］$');
+  static const _pbKind = {
+    '改丁': 'sheet', '改ページ': 'page', '改段': 'column',
+    'ページの左右中央': 'center'
+  };
 
   static final String _decoKw =
       (commandTable.keys.toList()..sort((a, b) => b.length - a.length))
@@ -292,6 +297,12 @@ class AozoraParser {
         } else {
           pending.parts.add(line);
         }
+        continue;
+      }
+
+      final mpb = _pbRe.firstMatch(line.trim());
+      if (mpb != null) {
+        paras.add(Para(segs: const [], pb: _pbKind[mpb[1]]));
         continue;
       }
 

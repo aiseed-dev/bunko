@@ -95,6 +95,14 @@ void main() {
     });
   });
 
+  test('改ページ類はpbマーカー段落になる（本文には出ない）', () {
+    final doc = parser.parse('題\n著\n\n前。\n［＃改ページ］\n後。\n');
+    expect(doc.paras.length, 3);
+    expect(doc.paras[1].pb, 'page');
+    expect(doc.paras[1].plain, '');
+    expect(Para.fromJson(doc.paras[1].toJson()).pb, 'page');
+  });
+
   group('Shift_JIS復号', () {
     test('cp932.bin で日本語が復号できる', () {
       final table = File('assets/cp932.bin').readAsBytesSync();
@@ -105,3 +113,4 @@ void main() {
     });
   });
 }
+

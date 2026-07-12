@@ -44,10 +44,29 @@ HEADING_CLOSE_RE = re.compile(
 HEADER_BLOCK_RE = re.compile(
     r'-{10,}\n【テキスト中に現れる記号について】.*?-{10,}\n', re.S)
 
+# 改丁・改ページ・改段・ページの左右中央（単独行の物理マーカー）─────────
+PAGE_BREAK_RE = re.compile(r'^［＃(改丁|改ページ|改段|ページの左右中央)］$')
+_PB_KIND = {'改丁': 'sheet', '改ページ': 'page', '改段': 'column',
+            'ページの左右中央': 'center'}
+
+# 訂正・ママ・注記（前方参照型・本文は保ち情報を notes に残す）──────────
+NOTES_RE = re.compile(
+    r'［＃(?:'
+    r'ルビの「(?P<rt>[^「」]*)」は底本では「(?P<rsrc>[^「」]*)」'
+    r'|「(?P<t1>[^「」]*)」は底本では「(?P<src>[^「」]*)」'
+    r'|「(?P<t2>[^「」]*)」はママ'
+    r'|「(?P<t3>[^「」]*)」に「(?P<n3>[^「」]*)」の注記'
+    r'|「(?P<t4>[^「」]*)」の左に「(?P<n4>[^「」]*)」の注記'
+    r')］')
+
 # 字下げ・地付き・字詰め（レイアウト系, HANDOFF「dir系」）──────────────
 # aozora2html: jisage=margin-left, chitsuki=text-align:right, jizume=width。
 _NUM = r'[0-9０-９〇一二三四五六七八九十百]+'
 _LAYOUT_KW = r'字下げ|字詰め|地付き|字上げ'
+
+# 後置形（行の途中から地に寄せる）: 前半は通常、後半を地付き・字上げに分ける
+INLINE_CHITSUKI_RE = re.compile(
+    rf'(?P<pre>.+?)［＃(?:地付き|地から(?P<n>{_NUM})字上げ)］(?P<post>.+)$')
 _KANJI_DIGIT = {'〇': 0, '一': 1, '二': 2, '三': 3, '四': 4,
                 '五': 5, '六': 6, '七': 7, '八': 8, '九': 9}
 # ブロック開始 ［＃ここから…字下げ］ / 終了 ［＃(ここで)…字下げ終わり］ / 単一行 ［＃…字下げ］
@@ -69,6 +88,8 @@ class Paragraph:
     indent: int = 0             # 字下げ幅（em, 左マージン）
     align: str | None = None    # None | 'right'（地付き・字上げ）
     align_offset: int = 0       # 字上げの N（地からN字上げ, 右マージンem）
+    page_break: str | None = None  # 'sheet'(改丁)/'page'(改ページ)/'column'(改段)/'center'(左右中央)
+    notes: list | None = None   # 訂正・ママ等 [{'t','kind',...}]（本文は訂正後の形のまま）
     jizume: int = 0             # 字詰め幅（em, width）
     image: tuple | None = None  # 挿絵 (src, width, height, caption)
 
@@ -152,6 +173,10 @@ class Document:
             if p.image:
                 s, w, h, cap = p.image
                 d['image'] = {'src': s, 'w': w, 'h': h, 'cap': cap}
+            if p.page_break:
+                d['pb'] = p.page_break
+            if p.notes:
+                d['notes'] = p.notes
             paras.append(d)
         return {'title': self.title, 'author': self.author,
                 'colophon': self.colophon, 'paragraphs': paras}
@@ -173,6 +198,8 @@ class Document:
             image = (img['src'], img['w'], img['h'], img['cap']) if img else None
             paras.append(Paragraph(
                 segments=segs, heading_level=pd.get('h', 0),
+                page_break=pd.get('pb'),
+                notes=pd.get('notes'),
                 heading_type=pd.get('htype'), decorations=deco,
                 indent=pd.get('indent', 0), align=pd.get('align'),
                 align_offset=pd.get('align_offset', 0),
@@ -228,6 +255,13 @@ def parse(text: str, image_base: str = '',
                 pending['parts'].append(line)
             continue
 
+        # 改丁・改ページ・改段・左右中央（単独行）→ マーカー段落
+        mpb = PAGE_BREAK_RE.match(line.strip())
+        if mpb:
+            paragraphs.append(Paragraph(segments=[],
+                                        page_break=_PB_KIND[mpb.group(1)]))
+            continue
+
         # レイアウト（字下げ・地付き・字詰め）指示を先に処理し、行から除く
         line, oneline = _apply_layout(line, layout_stack)
         if not line.strip():
@@ -262,6 +296,20 @@ def parse(text: str, image_base: str = '',
             paragraphs.append(p)
             continue
 
+        # 後置形の地付き・字上げ: 「本文［＃地から１字上げ］〔遺稿〕」
+        mc = INLINE_CHITSUKI_RE.match(line)
+        if mc:
+            p1 = _make_paragraph(mc.group('pre'), image_base=image_base,
+                                 unknown_notes=unknown_notes)
+            _set_layout(p1, layout)
+            paragraphs.append(p1)
+            p2 = _make_paragraph(mc.group('post'), image_base=image_base,
+                                 unknown_notes=unknown_notes)
+            p2.align = 'right'
+            p2.align_offset = _jp_number(mc.group('n')) if mc.group('n') else 0
+            paragraphs.append(p2)
+            continue
+
         p = _make_paragraph(line, image_base=image_base,
                             unknown_notes=unknown_notes)
         _set_layout(p, layout)
@@ -291,11 +339,30 @@ def _make_paragraph(line: str, heading_level: int = 0,
         image = (src, w, h, mimg.group('cap') or '')
         line = IMG_RE.sub('', line)
 
+    notes = []
+    for m in NOTES_RE.finditer(line):
+        if m.group('rt') is not None:
+            notes.append({'t': m.group('rt'), 'kind': 'ruby_teisei',
+                          'src': m.group('rsrc')})
+        elif m.group('t1') is not None:
+            notes.append({'t': m.group('t1'), 'kind': 'teisei',
+                          'src': m.group('src')})
+        elif m.group('t2') is not None:
+            notes.append({'t': m.group('t2'), 'kind': 'mama'})
+        elif m.group('t3') is not None:
+            notes.append({'t': m.group('t3'), 'kind': 'chuki',
+                          'note': m.group('n3')})
+        else:
+            notes.append({'t': m.group('t4'), 'kind': 'chuki_left',
+                          'note': m.group('n4')})
+    line = NOTES_RE.sub('', line)
+
     if unknown_notes is not None:  # 検査用: 何を捨てたかを記録
         unknown_notes.extend(m[2:-1] for m in NOTE_RE.findall(line))
     line = NOTE_RE.sub('', line)  # 未対応注記は安全に除去
     return Paragraph(
         segments=_split_ruby(line),
+        notes=notes or None,
         heading_level=heading_level,
         heading_type=heading_type,
         decorations=decorations or None,
