@@ -617,6 +617,56 @@ def main(page: ft.Page):
                 page.update()
         page.run_thread(work)
 
+    def _safe_name(title: str, fallback: str = 'draft') -> str:
+        return ''.join(c for c in (title or fallback)
+                       if c not in '/\\:*?"<>|')
+
+    def ed_export_json(e):
+        """構造化データ（Document JSON）として書き出す。
+
+        外字・アクセントは解決済みの実Unicode文字、見出し・字下げ・
+        ルビ・装飾・挿絵も構造として保持する一次表現（KUMIHAN.md参照）。
+        読者アプリ「文庫」や他のツールがそのまま読み込める。
+        """
+        text = ed_text.value or ''
+        if not text.strip():
+            return
+        try:
+            from pybunko import parse as _parse
+            doc = _parse(text)
+            out = Path('export_out')
+            out.mkdir(exist_ok=True)
+            path = out / f'{_safe_name(doc.title)}.json'
+            path.write_text(doc.to_json(indent=1), encoding='utf-8')
+            ed_status.value = f'✓ 構造化データ（JSON）: {path}'
+        except Exception as ex:
+            ed_status.value = f'JSON化に失敗: {ex}'
+        page.update()
+
+    def ed_export_epub(e):
+        """EPUB3として書き出す（Send to Kindle・Playブックス等で読める形）。"""
+        text = ed_text.value or ''
+        if not text.strip():
+            return
+        ed_busy.visible = True
+        page.update()
+
+        def work():
+            try:
+                from pybunko import parse as _parse
+                from pybunko.formats import to_epub
+                doc = _parse(text)
+                out = Path('export_out')
+                out.mkdir(exist_ok=True)
+                path = to_epub(doc, str(out / f'{_safe_name(doc.title)}.epub'))
+                ed_status.value = f'✓ EPUB: {path}'
+            except Exception as ex:
+                ed_status.value = f'EPUB化に失敗: {ex}'
+            finally:
+                ed_busy.visible = False
+                page.update()
+        page.run_thread(work)
+
     def _mi(label, on_click, shortcut=''):
         """メニュー項目（右にショートカット表示）。"""
         row = [ft.Text(label, size=15)]
@@ -682,6 +732,12 @@ def main(page: ft.Page):
                 _mi('保存', ed_save, 'Ctrl+S'),
                 ft.SubmenuButton(content=ft.Text('保存形式', size=15),
                                  controls=[mi_enc['utf-8'], mi_enc['sjis']]),
+                ft.Divider(height=1, color=RULE),
+                ft.SubmenuButton(content=ft.Text('エクスポート', size=15),
+                                 controls=[
+                    _mi('構造化データ（JSON）', ed_export_json),
+                    _mi('EPUB', ed_export_epub),
+                ]),
             ]),
             _menu('編集', [
                 _mi('元に戻す', _ed_do_undo, 'Ctrl+Z'),
