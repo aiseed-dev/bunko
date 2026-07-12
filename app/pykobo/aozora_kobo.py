@@ -448,10 +448,16 @@ def main(page: ft.Page):
         _ed_update_status()
         page.update()
 
-    # ── 検索・置換 ──
+    # ── 検索・置換（編集メニューからトグル表示） ──
     ed_find = ft.TextField(label='検索', width=200, bgcolor=PAPER_HI,
                            on_submit=lambda e: _ed_find_next(None))
     ed_repl = ft.TextField(label='置換', width=200, bgcolor=PAPER_HI)
+
+    def _ed_toggle_find(e=None):
+        ed_find_row.visible = not ed_find_row.visible
+        if ed_find_row.visible:
+            ed_find.focus()
+        page.update()
 
     def _ed_find_next(e):
         v, q = _ed_text_get(), ed_find.value or ''
@@ -512,6 +518,14 @@ def main(page: ft.Page):
         elif k == 'Y':
             _ed_do_redo()
     page.on_keyboard_event = _on_key
+
+    def ed_new(e):
+        _ed_push_undo()
+        ed_text.value = ''
+        ed_path.value = 'draft.txt'
+        ed_status.value = '新規作成しました'
+        _ed_update_status()
+        page.update()
 
     def ed_open(e):
         from pybunko.convert import read_text
@@ -616,32 +630,65 @@ def main(page: ft.Page):
                 page.update()
         page.run_thread(work)
 
+    def _mi(label, on_click, shortcut=''):
+        """メニュー項目（右にショートカット表示）。"""
+        row = [ft.Text(label, size=15)]
+        if shortcut:
+            row += [ft.Container(width=24),
+                    ft.Text(shortcut, size=CAPTION, color=MUTED)]
+        return ft.MenuItemButton(
+            content=ft.Row(row, alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            on_click=on_click)
+
+    def _menu(label, items):
+        return ft.SubmenuButton(
+            content=ft.Text(label, size=15), controls=items)
+
+    ed_menubar = ft.MenuBar(
+        style=ft.MenuStyle(bgcolor=PAPER_HI),
+        controls=[
+            _menu('ファイル', [
+                _mi('新規', ed_new),
+                _mi('開く…', ed_open),
+                _mi('保存', ed_save, 'Ctrl+S'),
+            ]),
+            _menu('編集', [
+                _mi('元に戻す', _ed_do_undo, 'Ctrl+Z'),
+                _mi('やり直す', _ed_do_redo, 'Ctrl+Y'),
+                _mi('検索と置換…', _ed_toggle_find),
+            ]),
+            _menu('挿入', [
+                _mi('ルビ（選択語に）', ed_insert('ruby')),
+                _mi('傍点（選択語に）', ed_insert('bouten')),
+                _mi('大見出し', ed_insert('midashi')),
+                _mi('字下げブロック', ed_insert('jisage')),
+                _mi('地付き', ed_insert('jitsuki')),
+                _mi('改ページ', ed_insert('kaipage')),
+            ]),
+            _menu('組版', [
+                _mi('組版プレビュー', ed_preview_update),
+                _mi('印刷用PDF', ed_pdf),
+            ]),
+            _menu('校正', [
+                _mi('機械チェック', ed_lint),
+            ]),
+        ])
+
+    ed_find_row = ft.Row([ed_find,
+                          ft.OutlinedButton('次', on_click=_ed_find_next),
+                          ed_repl,
+                          ft.OutlinedButton('すべて置換',
+                                            on_click=_ed_replace_all),
+                          ft.IconButton(ft.Icons.CLOSE, icon_size=18,
+                                        icon_color=MUTED,
+                                        on_click=_ed_toggle_find),
+                          ], wrap=True, visible=False)
+
     tab_write = ft.Column([
-        ft.Row([ed_path, ed_enc, ed_mode,
-                ft.OutlinedButton('開く', on_click=ed_open),
-                ft.FilledButton('保存', bgcolor=SHU, color=PAPER_HI,
-                                on_click=ed_save), ed_busy], wrap=True),
-        ft.Row([
-            ft.FilledButton('組版プレビュー', bgcolor=INK_SOFT, color=PAPER_HI,
-                            icon=ft.Icons.PREVIEW, on_click=ed_preview_update),
-            ft.OutlinedButton('機械チェック', on_click=ed_lint),
-            ft.OutlinedButton('印刷用PDF', icon=ft.Icons.PRINT, on_click=ed_pdf),
-            ft.Container(width=12),
-            ft.TextButton('ルビ', tooltip='選択した語にルビを付ける（無選択なら雛形挿入）',
-                          on_click=ed_insert('ruby')),
-            ft.TextButton('傍点', on_click=ed_insert('bouten')),
-            ft.TextButton('大見出し', on_click=ed_insert('midashi')),
-            ft.TextButton('字下げ', on_click=ed_insert('jisage')),
-            ft.TextButton('地付き', on_click=ed_insert('jitsuki')),
-            ft.TextButton('改ページ', on_click=ed_insert('kaipage')),
-        ], wrap=True),
-        ft.Row([ed_find,
-                ft.OutlinedButton('次', on_click=_ed_find_next),
-                ed_repl,
-                ft.OutlinedButton('すべて置換', on_click=_ed_replace_all),
-                ft.OutlinedButton('元に戻す (Ctrl+Z)', on_click=_ed_do_undo),
-                ft.OutlinedButton('やり直す (Ctrl+Y)', on_click=_ed_do_redo),
-                ], wrap=True),
+        ft.Row([ed_menubar, ft.Container(width=10),
+                ed_path, ed_enc, ed_mode, ed_busy], wrap=True,
+               vertical_alignment=ft.CrossAxisAlignment.CENTER),
+        ed_find_row,
         ft.Row([ed_status, ft.Container(expand=True), ed_stat]),
         ft.Row([
             ft.Container(ed_text, expand=True),
