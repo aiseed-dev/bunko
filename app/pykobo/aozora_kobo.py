@@ -774,10 +774,9 @@ def main(page: ft.Page):
                           ], wrap=True, visible=False)
 
     tab_write = ft.Column([
-        ft.Row([ed_menubar, ft.Container(expand=True), ed_busy],
-               vertical_alignment=ft.CrossAxisAlignment.CENTER),
         ed_find_row,
-        ft.Row([ed_status, ft.Container(expand=True), ed_stat]),
+        ft.Row([ed_status, ft.Container(expand=True), ed_busy, ed_stat],
+               vertical_alignment=ft.CrossAxisAlignment.CENTER),
         ft.Row([
             ft.Container(ed_text, expand=True),
             ed_panel,
@@ -1228,31 +1227,40 @@ def main(page: ft.Page):
     ], expand=True, spacing=8)
 
     # ---------- 全体 ----------
-    # ウェブサイトではないのでアプリ名バナーは持たない。現在のファイル名は
-    # ウィンドウ/タブのタイトルに出す（_update_doc_title）── 普通のエディタの作法。
-    tabs = ft.Tabs(
-        length=6,
-        expand=True,
-        content=ft.Column([
-            ft.TabBar(tabs=[ft.Tab(label='執筆'), ft.Tab(label='入力'),
-                            ft.Tab(label='校正'), ft.Tab(label='検査'),
-                            ft.Tab(label='資産'), ft.Tab(label='検証')],
-                      indicator_color=SHU, divider_color=RULE,
-                      label_text_style=ft.TextStyle(size=15,
-                                               weight=ft.FontWeight.W_600),
-                      unselected_label_text_style=ft.TextStyle(size=15)),
-            ft.TabBarView(controls=[
-                ft.Container(tab_write, padding=16),
-                ft.Container(tab_input, padding=16),
-                ft.Container(tab_kosei, padding=16),
-                ft.Container(tab_inspect, padding=16),
-                ft.Container(tab_assets, padding=16),
-                ft.Container(tab_verify, padding=16),
-            ], expand=True),
-        ], expand=True),
-    )
+    # メニューバー一段だけの普通のワープロ画面。執筆が主画面で、
+    # 他の道具（入力・校正・検査・資産・検証）は「ツール」メニューで切替。
+    views = {
+        'write': ('執筆（メイン）', tab_write),
+        'input': ('入力（撮影→書き起こし）', tab_input),
+        'kosei': ('校正（機械＋Claude・作業履歴）', tab_kosei),
+        'inspect': ('検査（変換点検・一括点検・書き出し）', tab_inspect),
+        'assets': ('資産（書架DB・フォント・朗読パック）', tab_assets),
+        'verify': ('検証（公式XHTMLと突き合わせ）', tab_verify),
+    }
+    body = ft.Container(content=tab_write, expand=True, padding=16)
 
-    page.add(tabs)
+    mi_view = {}
+
+    def _set_view(name):
+        def handler(e):
+            body.content = views[name][1]
+            for k, mi in mi_view.items():
+                mi.leading = _check(k == name)
+            page.update()
+        return handler
+
+    for name, (label, _view) in views.items():
+        mi_view[name] = ft.MenuItemButton(
+            content=ft.Text(label, size=15),
+            leading=_check(name == 'write'),
+            on_click=_set_view(name))
+
+    ed_menubar.controls.append(_menu('ツール', list(mi_view.values())))
+
+    page.add(
+        ft.Container(ft.Row([ed_menubar]), padding=ft.Padding(8, 6, 8, 0)),
+        body,
+    )
 
 
 if __name__ == '__main__':
