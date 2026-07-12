@@ -86,7 +86,7 @@ Document（Unicode中間表現・JSONで保存可能）
 - **入力・校正タブ** …… 作業マニュアル準拠のチェックと下書き
   （組版案内の範囲外だが、同じ土台の上にある）
 
-起動: `KOBO_PORT=8789 python aozora_kobo.py`（スマフォからも同一LANで使える）
+起動: `flet run`（デスクトップ）／`KOBO_PORT=8790 python main.py`（Web・スマフォからも同一LANで使える）
 
 ## 4. 自分のPCで変換
 

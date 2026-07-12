@@ -58,6 +58,7 @@ python aozora_tts.py                # 変換デモ
 
 | ファイル | 役割 |
 |---|---|
+| `main.py` | 青空工房の入口（`flet run` で起動） |
 | `aozora_kobo.py` | **青空工房** ── 日本語ワープロ＋統合作業台（執筆・入力・校正・検査・資産・検証の6タブ） |
 | `aozora_shinkan.py` | 変換プレビュー（軽量リーダー。検索・パースは `pybunko` に委譲） |
 | `aozora2epub.py` | 注記付きテキスト → EPUB3 変換（`pybunko.parse` + `to_epub`） |
@@ -66,8 +67,8 @@ python aozora_tts.py                # 変換デモ
 ### 青空工房（aozora_kobo.py）
 
 ```bash
-flet run aozora_kobo.py                 # デスクトップ
-KOBO_PORT=8788 python aozora_kobo.py    # Webサーバとして（ブラウザで開く）
+flet run                           # デスクトップ（main.py が入口）
+KOBO_PORT=8790 python main.py      # Webサーバとして（PC・スマフォのブラウザで開く）
 ```
 
 - **検査** … 作品を検索→点検。未対応注記（パーサが除去した［＃…］）と未解決外字（〓）を

@@ -22,7 +22,8 @@ String _hex(Color c) =>
     '#${(c.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}';
 
 /// Doc → A4縦書きSVG頁の列。題名・著者を冒頭に添える。
-List<String> buildPrintPages(Doc doc, {double fontSize = 14}) {
+/// 既定の文字サイズは約40字/列（usableH / 40 / 字送り1.18 ≈ 15.6pt）。
+List<String> buildPrintPages(Doc doc, {double fontSize = 15.6}) {
   final paras = [
     Para(segs: [Seg(doc.title)], h: 2),
     Para(segs: [Seg(doc.author)]),

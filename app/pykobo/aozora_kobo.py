@@ -29,6 +29,9 @@ from pathlib import Path
 
 import flet as ft
 
+from kobo_theme import (BODY, CAPTION, FONT_FAMILY, INK, INK_SOFT, MUTED, OK,
+                        PAPER, PAPER_HI, RULE, SHU, SMALL, TITLE, WARN,
+                        make_theme)
 from pybunko import Library, Work, parse
 from pybunko.ai import ClaudeClient, locate, proofread
 from pybunko.gaiji import resolve_note_body
@@ -48,11 +51,7 @@ def lan_url(port: int) -> str:
         ip = '127.0.0.1'
     return f'http://{ip}:{port}'
 
-# ================= 意匠（読者アプリと同じ和紙×朱） =================
-PAPER, PAPER_HI = '#E7E2D4', '#EEE9DC'
-INK, INK_SOFT = '#221F19', '#4A4437'
-SHU, MUTED, RULE = '#A8392A', '#8C846E', '#D0C7B1'
-OK, WARN = '#3A6B35', '#A8392A'
+# 意匠（和紙×朱・文字サイズ規約）は kobo_theme.py に集約
 
 CACHE = Path('aozora_cache')
 _LIB = Library(cache_dir=CACHE)
@@ -120,15 +119,17 @@ def golden_check(work: Work) -> dict:
 
 def main(page: ft.Page):
     page.title = '青空工房 ── 工作員の作業台'
+    page.fonts = {FONT_FAMILY: 'fonts/ipaexm.ttf'}  # assets/ から（外字込み）
+    page.theme = make_theme()
+    page.theme_mode = ft.ThemeMode.LIGHT
     page.bgcolor = PAPER
     page.padding = 0
-    page.fonts = {}
 
     def status_text(msg: str, color: str = MUTED) -> ft.Text:
-        return ft.Text(msg, size=12, color=color)
+        return ft.Text(msg, size=SMALL, color=color)
 
     # ---------- 検査タブ ----------
-    ins_query = ft.TextField(label='作品名・作家名で検索', dense=True, expand=True,
+    ins_query = ft.TextField(label='作品名・作家名で検索', expand=True,
                              bgcolor=PAPER_HI,
                              on_submit=lambda e: ins_search())
     ins_results = ft.ListView(height=180, spacing=2)
@@ -139,9 +140,9 @@ def main(page: ft.Page):
         hits = _LIB.search(ins_query.value or '')
         ins_results.controls = [
             ft.ListTile(
-                dense=True,
+                
                 title=ft.Text(f'{w.title}', color=INK),
-                subtitle=ft.Text(w.author, size=11, color=MUTED),
+                subtitle=ft.Text(w.author, size=CAPTION, color=MUTED),
                 on_click=lambda e, w=w: ins_inspect(w))
             for w in hits
         ]
@@ -168,12 +169,20 @@ def main(page: ft.Page):
                 out.mkdir(exist_ok=True)
                 safe = ''.join(c for c in doc.title if c not in '/\\:*?"<>|')
                 if fmt == 'pdf':
-                    path = to_pdf(doc, str(out / f'{safe}.pdf'), vertical=True)
-                else:
+                    path = to_pdf(doc, str(out / f'{safe}.pdf'),
+                                  vertical=True, font_size=24)
+                elif fmt == 'html':
                     path = out / f'{safe}.html'
-                    path.write_text(to_washi_html(doc, vertical=True),
-                                    encoding='utf-8')
-                ins_status.value = f'✓ 組版しました: {path}（印刷はブラウザ/ビューアから）'
+                    path.write_text(
+                        to_washi_html(doc, vertical=True, font_size=24),
+                        encoding='utf-8')
+                elif fmt == 'epub':
+                    from pybunko.formats import to_epub
+                    path = to_epub(doc, str(out / f'{safe}.epub'))
+                else:  # json（Unicode一次データ）
+                    path = out / f'{safe}.json'
+                    path.write_text(doc.to_json(), encoding='utf-8')
+                ins_status.value = f'✓ 書き出しました: {path}'
             except Exception as ex:
                 ins_status.value = f'組版に失敗: {ex}'
             finally:
@@ -191,16 +200,20 @@ def main(page: ft.Page):
         ins_print.state = doc
         rows: list[ft.Control] = [
             ft.Row([
-                ft.Text(f'{doc.title} ／ {doc.author}', size=18,
+                ft.Text(f'{doc.title} ／ {doc.author}', size=20,
                         weight=ft.FontWeight.W_600, color=INK, expand=True),
                 ft.OutlinedButton('印刷用PDF（縦書き）',
                                   icon=ft.Icons.PRINT,
                                   on_click=lambda e: ins_print('pdf')),
                 ft.OutlinedButton('組版HTML',
                                   on_click=lambda e: ins_print('html')),
+                ft.OutlinedButton('EPUB',
+                                  on_click=lambda e: ins_print('epub')),
+                ft.OutlinedButton('JSON',
+                                  on_click=lambda e: ins_print('json')),
             ]),
             ft.Row([ft.Container(
-                ft.Text(f'{k} {v}', size=12,
+                ft.Text(f'{k} {v}', size=SMALL,
                         color=INK_SOFT),
                 bgcolor=PAPER_HI, border_radius=999,
                 padding=ft.Padding(10, 4, 10, 4))
@@ -212,25 +225,25 @@ def main(page: ft.Page):
             f'未解決外字（〓）: {sum(ung.values())} 件',
             color=(WARN if ung else OK), weight=ft.FontWeight.W_600))
         for body, n in ung.most_common(20):
-            rows.append(ft.Text(f'  ※［＃{body}］ ×{n}', size=12, color=INK_SOFT,
+            rows.append(ft.Text(f'  ※［＃{body}］ ×{n}', size=SMALL, color=INK_SOFT,
                                 selectable=True))
         rows.append(ft.Text(
             f'未対応注記（除去された）: {sum(unk.values())} 件',
             color=(WARN if unk else OK), weight=ft.FontWeight.W_600))
         for body, n in unk.most_common(30):
-            rows.append(ft.Text(f'  ［＃{body}］ ×{n}', size=12, color=INK_SOFT,
+            rows.append(ft.Text(f'  ［＃{body}］ ×{n}', size=SMALL, color=INK_SOFT,
                                 selectable=True))
         rows.append(ft.Container(height=8))
-        rows.append(ft.Text('冒頭プレビュー（ルビは《》表示）', size=12, color=MUTED))
+        rows.append(ft.Text('冒頭プレビュー（ルビは《》表示）', size=SMALL, color=MUTED))
         for p in doc.paragraphs[:8]:
             t = ''.join(f'{s}《{r}》' if r else s for s, r in p.segments)
-            rows.append(ft.Text(('　' * p.indent) + t, size=13, color=INK))
+            rows.append(ft.Text(('　' * p.indent) + t, size=15, color=INK))
         ins_report.controls = rows
         ins_status.value = f'点検完了: {doc.title}'
         page.update()
 
     ins_census_limit = ft.TextField(label='一括点検の作品数', value='300',
-                                    dense=True, width=140, bgcolor=PAPER_HI)
+                                    width=140, bgcolor=PAPER_HI)
     ins_busy = ft.ProgressRing(width=18, height=18, color=SHU, visible=False)
 
     def ins_census(e):
@@ -257,9 +270,9 @@ def main(page: ft.Page):
                     rows.append(ft.Container(ft.Column([
                         ft.Text(f"［＃{x['pattern']}］　×{x['count']}回"
                                 f"／{x['works']}作品",
-                                size=13, color=INK, selectable=True),
+                                size=15, color=INK, selectable=True),
                         ft.Text(f"例: {x['example'][:80]}",
-                                size=11, color=MUTED),
+                                size=CAPTION, color=MUTED),
                     ], spacing=2), bgcolor=PAPER_HI, border_radius=6,
                         padding=8))
                 ins_report.controls = rows
@@ -286,18 +299,48 @@ def main(page: ft.Page):
 
     # ---------- 執筆タブ（昔の日本語ワープロ: 書く→組版→刷る） ----------
     ed_path = ft.TextField(label='ファイル（開く/保存）', value='draft.txt',
-                           dense=True, expand=True, bgcolor=PAPER_HI)
+                           width=320, bgcolor=PAPER_HI)
     ed_enc = ft.Dropdown(
-        label='保存形式', width=210, dense=True, bgcolor=PAPER_HI,
+        label='保存形式', width=210, bgcolor=PAPER_HI,
         value='utf-8',
         options=[ft.DropdownOption('utf-8', 'UTF-8'),
                  ft.DropdownOption('sjis', 'Shift_JIS＋CR+LF（提出用）')])
+    ed_mode = ft.Dropdown(
+        label='組版', width=200, bgcolor=PAPER_HI,
+        value='normal',
+        options=[ft.DropdownOption('normal', 'ふつう（40字/列）'),
+                 ft.DropdownOption('genko', '原稿用紙（20×20）')])
+
+    def _washi_opts():
+        """組版モード → washi renderの引数と用紙向き。
+        ふつう: A4縦・24px ≈ 40字/列。原稿用紙: A4横・24px = マス約6.4mm。"""
+        if ed_mode.value == 'genko':
+            return (dict(vertical=True, genko=True, font_size=24,
+                         extra_style='@page{size: A4 landscape;}'),
+                    (1123, 794))
+        return dict(vertical=True, font_size=24), (794, 1123)
     ed_text = ft.TextField(
-        multiline=True, min_lines=26, max_lines=26, expand=True,
-        bgcolor=PAPER_HI, text_style=ft.TextStyle(size=14, color=INK),
+        multiline=True, min_lines=24, max_lines=24, expand=True,
+        bgcolor=PAPER_HI, text_style=ft.TextStyle(size=16, color=INK),
         hint_text='題名\n著者名\n\n　本文をここに（青空注記形式）…')
-    ed_preview = ft.Image(src='', fit=ft.BoxFit.CONTAIN, visible=False,
-                          expand=True)
+    ed_preview = ft.Image(src='', fit=ft.BoxFit.CONTAIN, expand=True)
+    ed_panel = ft.Container(
+        ft.Column([
+            ft.Row([
+                ft.Text('組版プレビュー（A4・1頁目）', size=CAPTION, color=MUTED,
+                        expand=True),
+                ft.IconButton(ft.Icons.CLOSE, icon_size=18, icon_color=MUTED,
+                              tooltip='プレビューを閉じる',
+                              on_click=lambda e: _ed_panel_hide()),
+            ]),
+            ed_preview,
+        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+        width=360, bgcolor=PAPER_HI, padding=8, border_radius=6,
+        visible=False)
+
+    def _ed_panel_hide():
+        ed_panel.visible = False
+        page.update()
     ed_report = ft.ListView(height=150, spacing=4)
     ed_busy = ft.ProgressRing(width=18, height=18, color=SHU, visible=False)
     ed_status = status_text('青空注記形式で書けます（記法はボタンでコピー→貼り付け）')
@@ -354,18 +397,18 @@ def main(page: ft.Page):
 
     def _washi_png(text: str) -> bytes:
         """washi-md組版の1頁目をPNGに（昔のワープロの印刷プレビュー相当）。"""
-        import base64 as _b64  # noqa: F401  （説明用・未使用でも害なし）
         import subprocess, tempfile
         from pybunko import parse as _parse
         from pybunko.formats import to_washi_html
-        html = to_washi_html(_parse(text), vertical=True)
+        opts, (w, h) = _washi_opts()
+        html = to_washi_html(_parse(text), **opts)
         with tempfile.TemporaryDirectory() as td:
             html_p = Path(td) / 'p.html'
             png_p = Path(td) / 'p.png'
             html_p.write_text(html, encoding='utf-8')
             subprocess.run(
                 ['google-chrome', '--headless', '--disable-gpu',
-                 '--window-size=794,1123', f'--screenshot={png_p}',
+                 f'--window-size={w},{h}', f'--screenshot={png_p}',
                  html_p.resolve().as_uri()],
                 check=True, capture_output=True)
             return png_p.read_bytes()
@@ -385,7 +428,7 @@ def main(page: ft.Page):
                 png = _washi_png(text)
                 ed_preview.src = ('data:image/png;base64,'
                                   + base64.b64encode(png).decode())
-                ed_preview.visible = True
+                ed_panel.visible = True
                 ed_status.value = '組版プレビューを更新しました（washi-md・縦書き）'
             except Exception as ex:
                 ed_status.value = f'組版に失敗: {ex}'
@@ -410,7 +453,8 @@ def main(page: ft.Page):
                 out.mkdir(exist_ok=True)
                 safe = ''.join(c for c in (doc.title or 'draft')
                                if c not in '/\\:*?"<>|')
-                path = to_pdf(doc, str(out / f'{safe}.pdf'), vertical=True)
+                opts, _ = _washi_opts()
+                path = to_pdf(doc, str(out / f'{safe}.pdf'), **opts)
                 ed_status.value = f'✓ 印刷用PDF: {path}'
             except Exception as ex:
                 ed_status.value = f'PDF化に失敗: {ex}'
@@ -420,10 +464,10 @@ def main(page: ft.Page):
         page.run_thread(work)
 
     tab_write = ft.Column([
-        ft.Row([ed_path, ed_enc,
+        ft.Row([ed_path, ed_enc, ed_mode,
                 ft.OutlinedButton('開く', on_click=ed_open),
                 ft.FilledButton('保存', bgcolor=SHU, color=PAPER_HI,
-                                on_click=ed_save), ed_busy]),
+                                on_click=ed_save), ed_busy], wrap=True),
         ft.Row([
             ft.FilledButton('組版プレビュー', bgcolor=INK_SOFT, color=PAPER_HI,
                             icon=ft.Icons.PREVIEW, on_click=ed_preview_update),
@@ -435,13 +479,8 @@ def main(page: ft.Page):
         ], wrap=True),
         ed_status,
         ft.Row([
-            ft.Container(ed_text, expand=3),
-            ft.Container(
-                ft.Column([
-                    ft.Text('組版プレビュー（A4・1頁目）', size=11, color=MUTED),
-                    ed_preview,
-                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                expand=2, bgcolor=PAPER_HI, padding=8, border_radius=6),
+            ft.Container(ed_text, expand=True),
+            ed_panel,
         ], expand=True, vertical_alignment=ft.CrossAxisAlignment.START),
         ed_report,
     ], expand=True, spacing=8)
@@ -454,22 +493,22 @@ def main(page: ft.Page):
     in_picker = ft.FilePicker()
     page.services.append(in_picker)
     in_engine = ft.Dropdown(
-        label='エンジン', width=240, dense=True, bgcolor=PAPER_HI,
+        label='エンジン', width=240, bgcolor=PAPER_HI,
         value='openai',
         options=[ft.DropdownOption('openai', 'ローカルVLM（OpenAI互換ノード）'),
                  ft.DropdownOption('claude', 'Claude（画像入力）')])
     in_base = ft.TextField(
-        label='ノードURL（…/v1まで）', dense=True, width=300, bgcolor=PAPER_HI,
+        label='ノードURL（…/v1まで）', width=300, bgcolor=PAPER_HI,
         value=_os.environ.get('AOZORA_VISION_BASE_URL', 'http://127.0.0.1:1234/v1'))
-    in_model = ft.TextField(label='モデル名', dense=True, width=200,
+    in_model = ft.TextField(label='モデル名', width=200,
                             bgcolor=PAPER_HI,
                             value=_os.environ.get('AOZORA_VISION_MODEL', ''))
-    in_files = ft.Text('画像はまだありません', size=12, color=MUTED)
+    in_files = ft.Text('画像はまだありません', size=SMALL, color=MUTED)
     in_text = ft.TextField(label='書き起こし（下書き ── 必ず底本と突き合わせる）',
                            multiline=True, min_lines=10, max_lines=24,
                            expand=True, bgcolor=PAPER_HI,
-                           text_style=ft.TextStyle(size=13, color=INK))
-    in_save = ft.TextField(label='保存先（.txt）', dense=True, expand=True,
+                           text_style=ft.TextStyle(size=15, color=INK))
+    in_save = ft.TextField(label='保存先（.txt）', expand=True,
                            bgcolor=PAPER_HI, value='draft.txt')
     in_report = ft.ListView(height=220, spacing=4)
     in_busy = ft.ProgressRing(width=18, height=18, color=SHU, visible=False)
@@ -573,10 +612,10 @@ def main(page: ft.Page):
     # 機械チェック=即時（kosei.lint）、Claude校正=意味レベルの疑い（要APIキー）。
     ko_state = {'text': '', 'name': ''}
     ko_path = ft.TextField(label='校正するテキスト（.txt/.zipのパス。Shift_JIS/UTF-8自動）',
-                           dense=True, expand=True, bgcolor=PAPER_HI,
+                           expand=True, bgcolor=PAPER_HI,
                            on_submit=lambda e: ko_load())
     ko_old = ft.Checkbox(label='旧字ファイル（新字の混入も検査）', value=False,
-                         label_style=ft.TextStyle(color=INK_SOFT, size=13),
+                         label_style=ft.TextStyle(color=INK_SOFT, size=15),
                          active_color=SHU, check_color=PAPER_HI)
     ko_report = ft.ListView(expand=True, spacing=4, padding=10)
     ko_busy = ft.ProgressRing(width=18, height=18, color=SHU, visible=False)
@@ -598,13 +637,13 @@ def main(page: ft.Page):
     def finding_tile(line, rule, text, note, ai=False):
         return ft.Container(ft.Column([
             ft.Row([ft.Container(
-                        ft.Text(('Claude ' if ai else '') + rule, size=11,
+                        ft.Text(('Claude ' if ai else '') + rule, size=CAPTION,
                                 color=PAPER_HI),
                         bgcolor=(SHU if ai else INK_SOFT), border_radius=999,
                         padding=ft.Padding(8, 2, 8, 2)),
-                    ft.Text(f'{line}行' if line else '', size=11, color=MUTED)]),
-            ft.Text(text, size=13, color=INK, selectable=True),
-            ft.Text(note, size=11, color=MUTED),
+                    ft.Text(f'{line}行' if line else '', size=CAPTION, color=MUTED)]),
+            ft.Text(text, size=15, color=INK, selectable=True),
+            ft.Text(note, size=CAPTION, color=MUTED),
         ], spacing=2), bgcolor=PAPER_HI, border_radius=6, padding=8)
 
     def ko_lint(e):
@@ -653,9 +692,9 @@ def main(page: ft.Page):
                 page.update()
         page.run_thread(work)
 
-    ko_before = ft.TextField(label='修正前ファイル', dense=True, expand=True,
+    ko_before = ft.TextField(label='修正前ファイル', expand=True,
                              bgcolor=PAPER_HI)
-    ko_after = ft.TextField(label='修正後ファイル', dense=True, expand=True,
+    ko_after = ft.TextField(label='修正後ファイル', expand=True,
                             bgcolor=PAPER_HI)
 
     def ko_history(e):
@@ -669,8 +708,8 @@ def main(page: ft.Page):
             return
         ko_report.controls = [
             ft.Text('作業履歴（reception宛メールに添えるファイルの下書き）',
-                    size=13, weight=ft.FontWeight.W_600, color=INK),
-            ft.Container(ft.Text(h, size=13, color=INK, selectable=True,
+                    size=15, weight=ft.FontWeight.W_600, color=INK),
+            ft.Container(ft.Text(h, size=15, color=INK, selectable=True,
                                  font_family='monospace'),
                          bgcolor=PAPER_HI, border_radius=6, padding=10),
         ]
@@ -693,14 +732,14 @@ def main(page: ft.Page):
 
     # ---------- 資産タブ ----------
     out_dir = ft.TextField(label='出力先ディレクトリ', value='assets_out',
-                           dense=True, bgcolor=PAPER_HI, width=280)
+                           bgcolor=PAPER_HI, width=280)
     doc_limit = ft.TextField(label='本文を埋める作品数（0=メタのみ）', value='0',
-                             dense=True, bgcolor=PAPER_HI, width=220)
+                             bgcolor=PAPER_HI, width=220)
     asset_log = ft.ListView(expand=True, spacing=2, padding=10, auto_scroll=True)
     asset_busy = ft.ProgressRing(width=18, height=18, color=SHU, visible=False)
 
     def log(msg: str, color: str = INK_SOFT):
-        asset_log.controls.append(ft.Text(msg, size=12, color=color, selectable=True))
+        asset_log.controls.append(ft.Text(msg, size=SMALL, color=color, selectable=True))
         page.update()
 
     def run_asset(name, fn):
@@ -729,8 +768,11 @@ def main(page: ft.Page):
         _LIB.build_sqlite(str(p), documents=limit > 0, cards=limit > 0,
                           limit=(limit if limit > 0 else None))
         from pybunko import db as adb
+        from pybunko.ndl import mark_reading_corpus
+        n = mark_reading_corpus(str(p))
         st = adb.stats(str(p))
-        log(f'✓ {p}: {p.stat().st_size/1024/1024:.1f} MB  {st}', OK)
+        log(f'✓ {p}: {p.stat().st_size/1024/1024:.1f} MB  {st}  '
+            f'読みコーパス {n}作品', OK)
 
     def build_index(out: Path):
         p = out / 'index.json'
@@ -745,8 +787,65 @@ def main(page: ft.Page):
         data = fonts.build_gaiji_font(out_path=str(p))
         log(f'✓ {p}: {len(data)/1024:.0f} KB', OK)
 
+    # 朗読パック生成（audio.py のGUI。エンジンはOSSローカルが正道・edgeは暫定）
+    ab_title = ft.TextField(label='朗読する作品名（完全一致）',
+                            width=260, bgcolor=PAPER_HI)
+    ab_engine = ft.Dropdown(
+        label='TTSエンジン', width=210, bgcolor=PAPER_HI,
+        value='edge',
+        options=[ft.DropdownOption('sbv2', 'Style-Bert-VITS2（ノード）'),
+                 ft.DropdownOption('voicevox', 'VOICEVOX（ローカル）'),
+                 ft.DropdownOption('openai', 'OpenAI互換（ノード）'),
+                 ft.DropdownOption('edge', 'edge-tts（クラウド・暫定）')])
+    ab_base = ft.TextField(label='ノードURL', width=230,
+                           bgcolor=PAPER_HI, value='http://127.0.0.1:5000')
+    ab_voice = ft.TextField(label='声（voice/model）', width=180,
+                            bgcolor=PAPER_HI)
+    ab_limit = ft.TextField(label='段落数（0=全部）', width=140,
+                            bgcolor=PAPER_HI, value='0')
+    ab_ndl = ft.TextField(label='NDL読み注釈txt（任意）', width=260,
+                          bgcolor=PAPER_HI)
+
+    def build_audiobook_asset(out: Path):
+        from pybunko.audio import (EdgeEngine, OpenAiSpeechEngine,
+                                   StyleBertVits2Engine, VoicevoxEngine,
+                                   build_audiobook)
+        title = (ab_title.value or '').strip()
+        hits = [w for w in _LIB.search(title) if w.title == title]
+        if not hits:
+            log(f'✗ 作品が見つかりません: {title}', WARN)
+            return
+        w = hits[0]
+        eng = ab_engine.value
+        voice = (ab_voice.value or '').strip()
+        if eng == 'sbv2':
+            engine = StyleBertVits2Engine(ab_base.value, model=voice or 0)
+        elif eng == 'voicevox':
+            engine = VoicevoxEngine(speaker=int(voice) if voice else 3)
+        elif eng == 'openai':
+            engine = OpenAiSpeechEngine(ab_base.value, voice=voice or 'alloy')
+        else:
+            engine = EdgeEngine(voice=voice or 'ja-JP-NanamiNeural')
+        readings = None
+        if (ab_ndl.value or '').strip():
+            from pybunko.ndl import parse_annotation
+            readings = parse_annotation(
+                Path(ab_ndl.value.strip()).read_text(encoding='utf-8'))
+            log(f'NDL読み辞書: {len(readings)}語')
+        doc = w.document()
+        limit = int(ab_limit.value or 0) or None
+        adir = out / 'audiobooks'
+        adir.mkdir(parents=True, exist_ok=True)
+        base = adir / w.work_id
+        log(f'朗読パック合成中: {w.title}（{engine.name}）…')
+        m = build_audiobook(
+            doc, str(base), engine, limit=limit, readings=readings,
+            progress=lambda d, t: log(f'  {d}/{t} 段落') if d % 10 == 0 else None)
+        log(f"✓ {base}.opus（{m['total']:.0f}秒・{len(m['paras'])}段落）"
+            f" / manifest={base}.audiobook.json", OK)
+
     tab_assets = ft.Column([
-        ft.Text('読者アプリ（bunko）に同梱するデータ資産を作ります', color=MUTED, size=13),
+        ft.Text('読者アプリ（bunko）に同梱するデータ資産を作ります', color=MUTED, size=15),
         ft.Row([out_dir, doc_limit, asset_busy]),
         ft.Row([
             ft.FilledButton('書架DB（SQLite）', bgcolor=SHU, color=PAPER_HI,
@@ -756,11 +855,19 @@ def main(page: ft.Page):
                               on_click=run_asset('外字フォント', build_font)),
         ], wrap=True),
         ft.Divider(color=RULE),
+        ft.Text('朗読パック（音声＋段落タイミング。文庫の audiobooks/ に置くと再生ボタンが出ます）',
+                color=MUTED, size=15),
+        ft.Row([ab_title, ab_engine, ab_base, ab_voice, ab_limit, ab_ndl,
+                ft.FilledButton('朗読パック生成', bgcolor=SHU, color=PAPER_HI,
+                                on_click=run_asset('朗読パック',
+                                                   build_audiobook_asset)),
+                ], wrap=True),
+        ft.Divider(color=RULE),
         asset_log,
     ], expand=True, spacing=10)
 
     # ---------- 検証タブ ----------
-    ver_query = ft.TextField(label='作品名で検索（公式XHTMLと突き合わせ）', dense=True,
+    ver_query = ft.TextField(label='作品名で検索（公式XHTMLと突き合わせ）',
                              expand=True, bgcolor=PAPER_HI,
                              on_submit=lambda e: ver_search())
     ver_results = ft.ListView(height=160, spacing=2)
@@ -770,8 +877,8 @@ def main(page: ft.Page):
     def ver_search():
         hits = _LIB.search(ver_query.value or '')
         ver_results.controls = [
-            ft.ListTile(dense=True, title=ft.Text(w.title, color=INK),
-                        subtitle=ft.Text(w.author, size=11, color=MUTED),
+            ft.ListTile(title=ft.Text(w.title, color=INK),
+                        subtitle=ft.Text(w.author, size=CAPTION, color=MUTED),
                         on_click=lambda e, w=w: ver_check(w))
             for w in hits]
         page.update()
@@ -796,15 +903,15 @@ def main(page: ft.Page):
             ft.Text(f'類似度 {ratio:.2f}%'
                     + ('　✓ 完全一致' if exact else f'　相違 {len(rep["diffs"])} ブロック'),
                     color=(OK if ratio > 99.9 else (INK_SOFT if ratio > 95 else WARN)),
-                    size=14, weight=ft.FontWeight.W_600),
+                    size=BODY, weight=ft.FontWeight.W_600),
         ]
         for d in rep['diffs'][:15]:
             rows.append(ft.Container(
                 ft.Column([
-                    ft.Text(f'[{d["tag"]}]', size=11, color=MUTED),
-                    *[ft.Text(f'− 正解: {ln[:90]}', size=11, color=WARN,
+                    ft.Text(f'[{d["tag"]}]', size=CAPTION, color=MUTED),
+                    *[ft.Text(f'− 正解: {ln[:90]}', size=CAPTION, color=WARN,
                               font_family='monospace') for ln in d['golden']],
-                    *[ft.Text(f'＋ 生成: {ln[:90]}', size=11, color=OK,
+                    *[ft.Text(f'＋ 生成: {ln[:90]}', size=CAPTION, color=OK,
                               font_family='monospace') for ln in d['ours']],
                 ], spacing=1),
                 bgcolor=PAPER_HI, border_radius=6, padding=8))
@@ -823,9 +930,9 @@ def main(page: ft.Page):
     # ---------- 全体 ----------
     header = ft.Container(
         ft.Column([
-            ft.Text('青空工房', size=24, weight=ft.FontWeight.W_600, color=INK),
+            ft.Text('青空工房', size=TITLE, weight=ft.FontWeight.W_600, color=INK),
             ft.Text('書く・整える・届ける ── 執筆・入力・校正・検査・資産・検証（日本語ワープロ＋工作員の作業台）',
-                    size=12, color=MUTED),
+                    size=SMALL, color=MUTED),
         ], spacing=2),
         padding=ft.Padding(20, 14, 20, 10), bgcolor=PAPER_HI,
     )
@@ -837,7 +944,10 @@ def main(page: ft.Page):
             ft.TabBar(tabs=[ft.Tab(label='執筆'), ft.Tab(label='入力'),
                             ft.Tab(label='校正'), ft.Tab(label='検査'),
                             ft.Tab(label='資産'), ft.Tab(label='検証')],
-                      indicator_color=SHU, divider_color=RULE),
+                      indicator_color=SHU, divider_color=RULE,
+                      label_text_style=ft.TextStyle(size=15,
+                                               weight=ft.FontWeight.W_600),
+                      unselected_label_text_style=ft.TextStyle(size=15)),
             ft.TabBarView(controls=[
                 ft.Container(tab_write, padding=16),
                 ft.Container(tab_input, padding=16),
@@ -858,6 +968,7 @@ if __name__ == '__main__':
     if port:   # Webサーバとして起動（view=WEB_BROWSERでuvicornが立つ。headlessでは開けないだけ）
         # host=0.0.0.0: スマフォ（同一LAN）から開いてカメラで底本を撮るため
         ft.run(main, port=port, view=ft.AppView.WEB_BROWSER,
-               host=os.environ.get('KOBO_HOST', '0.0.0.0'))
+               host=os.environ.get('KOBO_HOST', '0.0.0.0'),
+               assets_dir='assets')
     else:      # 通常のデスクトップ起動
-        ft.run(main)
+        ft.run(main, assets_dir='assets')

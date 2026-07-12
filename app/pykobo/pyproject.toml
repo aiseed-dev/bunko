@@ -21,7 +21,7 @@ pybunko = "pybunko.__main__:main"
 [project.optional-dependencies]
 epub = ["ebooklib>=0.18"]
 # 縦書き・原稿用紙・PDF組版は aiseed-dev/washi-md に委譲
-washi = ["washi-md>=0.9"]
+washi = ["washi-md>=0.9.1"]
 # 全作品コーパスの列指向エクスポート（研究・NLP・RAG向け）
 parquet = ["pyarrow>=14"]
 # 外字グリフのサブセット埋め込み（official.to_official_html(gaiji='font', embed_font=True)）
