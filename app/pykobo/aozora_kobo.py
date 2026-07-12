@@ -298,8 +298,10 @@ def main(page: ft.Page):
     _claude = ClaudeClient()
 
     # ---------- 執筆タブ（昔の日本語ワープロ: 書く→組版→刷る） ----------
-    ed_path = ft.TextField(label='ファイル（開く/保存）', value='draft.txt',
-                           width=320, bgcolor=PAPER_HI)
+    ed_picker = ft.FilePicker()
+    page.services.append(ed_picker)
+    ed_path = ft.TextField(label='ファイル名', value='draft.txt',
+                           width=260, bgcolor=PAPER_HI, read_only=True)
     ed_enc = ft.Dropdown(
         label='保存形式', width=210, bgcolor=PAPER_HI,
         value='utf-8',
@@ -527,29 +529,72 @@ def main(page: ft.Page):
         _ed_update_status()
         page.update()
 
-    def ed_open(e):
+    async def ed_open(e):
         from pybunko.convert import read_text
+        files = await ed_picker.pick_files(
+            dialog_title='青空注記テキストを開く',
+            file_type=ft.FilePickerFileType.CUSTOM,
+            allowed_extensions=['txt', 'zip'], with_data=True)
+        if not files:
+            return
+        f = files[0]
         try:
-            ed_text.value = read_text(ed_path.value.strip())
-            ed_status.value = f'開きました: {ed_path.value}'
+            if f.bytes is not None:        # Web: バイトで来る
+                import io as _io
+                import zipfile as _zip
+                data = f.bytes
+                if f.name.endswith('.zip') or data[:2] == b'PK':
+                    with _zip.ZipFile(_io.BytesIO(data)) as zf:
+                        data = zf.read(next(n for n in zf.namelist()
+                                            if n.endswith('.txt')))
+                try:
+                    text = data.decode('utf-8-sig')
+                except UnicodeDecodeError:
+                    text = data.decode('shift_jis', errors='replace')
+            else:                          # デスクトップ: パスで来る
+                text = read_text(f.path)
+            _ed_push_undo()
+            ed_text.value = text
+            ed_path.value = f.name
+            _ed_last_snapshot['v'] = text
+            ed_status.value = f'開きました: {f.name}'
+            _ed_update_status()
         except Exception as ex:
             ed_status.value = f'開けませんでした: {ex}'
         page.update()
 
-    def ed_save(e):
+    def _ed_encode(text):
+        """保存形式に応じてバイト列へ（Shift_JIS範囲外は例外を投げる）。"""
+        if ed_enc.value == 'sjis':
+            return text.replace('\r\n', '\n').replace('\n', '\r\n') \
+                .encode('shift_jis')
+        return text.encode('utf-8')
+
+    async def ed_save(e):
+        text = ed_text.value or ''
         try:
-            path = Path(ed_path.value.strip())
-            text = ed_text.value or ''
-            if ed_enc.value == 'sjis':
-                data = text.replace('\r\n', '\n').replace('\n', '\r\n')
-                path.write_bytes(data.encode('shift_jis'))
-            else:
-                path.write_text(text, encoding='utf-8')
+            data = _ed_encode(text)
+        except UnicodeEncodeError as ex:
+            bad = ex.object[ex.start:ex.start + 1]
+            ed_status.value = (f'Shift_JISに無い文字「{bad}」があります ── '
+                               '機械チェックで場所を確認してください')
+            page.update()
+            return
+        name = ed_path.value.strip() or 'draft.txt'
+        path = await ed_picker.save_file(
+            dialog_title='名前を付けて保存',
+            file_name=name,
+            file_type=ft.FilePickerFileType.CUSTOM,
+            allowed_extensions=['txt'],
+            src_bytes=data)          # Web: これでブラウザDLになる
+        if not path:
+            return
+        try:
+            if not str(path).startswith('upload'):  # デスクトップ: 実パス
+                Path(path).write_bytes(data)
+            ed_path.value = Path(path).name
             _ed_last_snapshot['v'] = text
             ed_status.value = f'保存しました: {path}（{ed_enc.value}）'
-        except UnicodeEncodeError as ex:
-            ed_status.value = ('Shift_JISに無い文字があります ── '
-                               f'機械チェックで場所を確認してください（{ex.object[ex.start:ex.start+1]}）')
         except Exception as ex:
             ed_status.value = f'保存できませんでした: {ex}'
         page.update()
