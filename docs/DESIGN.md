@@ -144,6 +144,10 @@ works(work_id PK, title, title_yomi, author, author_yomi,
    （HANDOFF当初のロードマップ項目）
 3. **埋め込み索引の事前計算**: 全作品の意味検索インデックスを資産として生成し、
    書架の「意味で探す」へ
+4. **底本ページの書き起こし（VLM入力）**: スマフォのカメラで底本を撮り、工房
+   （Web・LAN内）へ送る → ノード上のOSSのVLM（Qwen-VL等、OpenAI互換APIで
+   `pybunko.vision`）が青空文庫注記形式の下書きに書き起こす → 機械チェック
+   （`pybunko.kosei`）→ Claude校正。従来の「スキャナ＋OCR＋手修正」の置き換え
 
 ### 6.2 Flet 工作員アプリ（app/pykobo ── 青空工房）
 

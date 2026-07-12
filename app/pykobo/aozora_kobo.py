@@ -6,6 +6,7 @@ aozora_kobo.py — 青空工房（工作員の作業台・Flet）
 （pybunko）を同一プロセスで直接呼ぶ ── これがFlet採用の理由
 （DESIGN.md ADR-4）。3つのタブ:
 
+  入力 …… 底本ページの写真（スマフォのカメラ可）→ VLMで注記テキストの下書き
   検査 …… 作品の変換結果を点検（未対応注記・未解決外字〓・統計・プレビュー）
   校正 …… 作業マニュアル準拠の機械チェック＋Claude校正＋作業履歴の生成
   資産 …… 読者アプリ(bunko)に同梱するデータ資産を作る（書架DB・目次JSON・外字フォント）
@@ -26,6 +27,20 @@ from pybunko import Library, Work, parse
 from pybunko.ai import ClaudeClient, locate, proofread
 from pybunko.gaiji import resolve_note_body
 from pybunko.kosei import lint, work_history
+from pybunko.vision import ClaudeVisionEngine, OpenAiVisionEngine, transcribe_pages
+
+
+def lan_url(port: int) -> str:
+    """スマフォから開くためのLAN上のURL（見つからなければlocalhost）。"""
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(('10.255.255.255', 1))
+        ip = s.getsockname()[0]
+        s.close()
+    except OSError:
+        ip = '127.0.0.1'
+    return f'http://{ip}:{port}'
 
 # ================= 意匠（読者アプリと同じ和紙×朱） =================
 PAPER, PAPER_HI = '#E7E2D4', '#EEE9DC'
@@ -181,6 +196,130 @@ def main(page: ft.Page):
         ins_report,
     ], expand=True, spacing=8)
 
+    _claude = ClaudeClient()
+
+    # ---------- 入力タブ ----------
+    # 底本ページの写真 → VLM書き起こし（下書き）。スマフォからは工房のURLを
+    # 開けばカメラで直接撮れる（pick_files が撮影/ギャラリー選択になる）。
+    import os as _os
+    in_state = {'images': []}   # [(name, bytes)]
+    in_picker = ft.FilePicker()
+    page.services.append(in_picker)
+    in_engine = ft.Dropdown(
+        label='エンジン', width=240, dense=True, bgcolor=PAPER_HI,
+        value='openai',
+        options=[ft.DropdownOption('openai', 'ローカルVLM（OpenAI互換ノード）'),
+                 ft.DropdownOption('claude', 'Claude（画像入力）')])
+    in_base = ft.TextField(
+        label='ノードURL（…/v1まで）', dense=True, width=300, bgcolor=PAPER_HI,
+        value=_os.environ.get('AOZORA_VISION_BASE_URL', 'http://127.0.0.1:1234/v1'))
+    in_model = ft.TextField(label='モデル名', dense=True, width=200,
+                            bgcolor=PAPER_HI,
+                            value=_os.environ.get('AOZORA_VISION_MODEL', ''))
+    in_files = ft.Text('画像はまだありません', size=12, color=MUTED)
+    in_text = ft.TextField(label='書き起こし（下書き ── 必ず底本と突き合わせる）',
+                           multiline=True, min_lines=10, max_lines=24,
+                           expand=True, bgcolor=PAPER_HI,
+                           text_style=ft.TextStyle(size=13, color=INK))
+    in_save = ft.TextField(label='保存先（.txt）', dense=True, expand=True,
+                           bgcolor=PAPER_HI, value='draft.txt')
+    in_report = ft.ListView(height=220, spacing=4)
+    in_busy = ft.ProgressRing(width=18, height=18, color=SHU, visible=False)
+    in_status = status_text(
+        f'スマフォからは {lan_url(int(_os.environ.get("KOBO_PORT", "8789")))} '
+        'を開くと、カメラで撮ってそのまま送れます')
+
+    async def in_pick(e):
+        files = await in_picker.pick_files(
+            file_type=ft.FilePickerFileType.IMAGE,
+            allow_multiple=True, with_data=True)
+        for f in files or []:
+            data = f.bytes
+            if data is None and f.path:            # デスクトップはパスで来る
+                data = Path(f.path).read_bytes()
+            if data:
+                in_state['images'].append((f.name, data))
+        in_files.value = (
+            '、'.join(f'{n}（{len(b)/1024:.0f}KB）'
+                      for n, b in in_state['images'])
+            or '画像はまだありません')
+        in_status.value = f'{len(in_state["images"])} ページぶんの画像があります'
+        page.update()
+
+    def in_clear(e):
+        in_state['images'] = []
+        in_files.value = '画像はまだありません'
+        page.update()
+
+    def in_transcribe(e):
+        if not in_state['images']:
+            in_status.value = 'まず画像を選んで（撮って）ください'
+            page.update()
+            return
+        if in_engine.value == 'claude':
+            if not _claude.available:
+                in_status.value = 'ANTHROPIC_API_KEY が未設定です'
+                page.update()
+                return
+            engine = ClaudeVisionEngine(_claude)
+        else:
+            engine = OpenAiVisionEngine(base_url=in_base.value.strip(),
+                                        model=(in_model.value.strip() or None))
+        in_busy.visible = True
+        page.update()
+
+        def prog(done, total):
+            in_status.value = f'書き起こし中… {done}/{total} ページ'
+            page.update()
+
+        def work():
+            try:
+                text = transcribe_pages(in_state['images'], engine,
+                                        progress=prog)
+                in_text.value = text
+                in_status.value = ('書き起こしました（下書き）。底本と突き合わせて'
+                                   '直し、機械チェックへ')
+            except Exception as ex:
+                in_status.value = f'書き起こしに失敗: {ex}'
+            finally:
+                in_busy.visible = False
+                page.update()
+        page.run_thread(work)
+
+    def in_lint(e):
+        fs = lint(in_text.value or '')
+        in_report.controls = [
+            finding_tile(f.line, f.rule, f.text, f.note) for f in fs
+        ] or [ft.Text('機械チェックは0件です。', color=OK)]
+        in_status.value = f'機械チェック {len(fs)} 件'
+        page.update()
+
+    def in_write(e):
+        try:
+            path = Path(in_save.value.strip())
+            path.write_text(in_text.value or '', encoding='utf-8')
+            in_status.value = f'保存しました: {path}（校正タブでも使えます）'
+        except Exception as ex:
+            in_status.value = f'保存できませんでした: {ex}'
+        page.update()
+
+    tab_input = ft.Column([
+        ft.Row([in_engine, in_base, in_model, in_busy], wrap=True),
+        ft.Row([
+            ft.FilledButton('撮影・画像を選ぶ', bgcolor=SHU, color=PAPER_HI,
+                            on_click=in_pick),
+            ft.FilledButton('書き起こす', bgcolor=INK_SOFT, color=PAPER_HI,
+                            on_click=in_transcribe),
+            ft.OutlinedButton('機械チェック', on_click=in_lint),
+            ft.OutlinedButton('画像をクリア', on_click=in_clear),
+        ], wrap=True),
+        in_files, in_status,
+        in_text,
+        ft.Row([in_save, ft.OutlinedButton('保存', on_click=in_write)]),
+        ft.Divider(color=RULE),
+        in_report,
+    ], expand=True, spacing=8, scroll=ft.ScrollMode.AUTO)
+
     # ---------- 校正タブ ----------
     # 作業マニュアル【入力編】【校正編】の点検をツール化。
     # 機械チェック=即時（kosei.lint）、Claude校正=意味レベルの疑い（要APIキー）。
@@ -193,7 +332,6 @@ def main(page: ft.Page):
                          active_color=SHU, check_color=PAPER_HI)
     ko_report = ft.ListView(expand=True, spacing=4, padding=10)
     ko_busy = ft.ProgressRing(width=18, height=18, color=SHU, visible=False)
-    _claude = ClaudeClient()
     ko_status = status_text(
         'Claude: ' + (f'使用可（{_claude.model}）' if _claude.available
                       else '未設定（環境変数 ANTHROPIC_API_KEY を設定すると使えます）'))
@@ -209,7 +347,7 @@ def main(page: ft.Page):
             return None
         return ko_state['text']
 
-    def ko_finding_tile(line, rule, text, note, ai=False):
+    def finding_tile(line, rule, text, note, ai=False):
         return ft.Container(ft.Column([
             ft.Row([ft.Container(
                         ft.Text(('Claude ' if ai else '') + rule, size=11,
@@ -227,7 +365,7 @@ def main(page: ft.Page):
             return
         fs = lint(text, old_style=ko_old.value)
         ko_report.controls = [
-            ko_finding_tile(f.line, f.rule, f.text, f.note) for f in fs
+            finding_tile(f.line, f.rule, f.text, f.note) for f in fs
         ] or [ft.Text('機械チェックは0件です。', color=OK)]
         ko_status.value = (f'機械チェック {len(fs)} 件'
                            '（疑い含む。必ず底本と突き合わせること）')
@@ -253,7 +391,7 @@ def main(page: ft.Page):
             try:
                 fs = locate(proofread(text, _claude, progress=prog), text)
                 ko_report.controls = [
-                    ko_finding_tile(f.get('line', 0), '校正の疑い',
+                    finding_tile(f.get('line', 0), '校正の疑い',
                                     f'{f["quote"]}　→　{f.get("suggestion") or "？"}',
                                     f'{f.get("reason", "")}（採否は底本で判断）',
                                     ai=True)
@@ -438,22 +576,24 @@ def main(page: ft.Page):
     header = ft.Container(
         ft.Column([
             ft.Text('青空工房', size=24, weight=ft.FontWeight.W_600, color=INK),
-            ft.Text('工作員の作業台 ── 検査・資産づくり・公式HTML検証（Pythonパイプライン直結）',
+            ft.Text('工作員の作業台 ── 入力・校正・検査・資産づくり・検証（Pythonパイプライン直結）',
                     size=12, color=MUTED),
         ], spacing=2),
         padding=ft.Padding(20, 14, 20, 10), bgcolor=PAPER_HI,
     )
 
     tabs = ft.Tabs(
-        length=4,
+        length=5,
         expand=True,
         content=ft.Column([
-            ft.TabBar(tabs=[ft.Tab(label='検査'), ft.Tab(label='校正'),
-                            ft.Tab(label='資産'), ft.Tab(label='検証')],
+            ft.TabBar(tabs=[ft.Tab(label='入力'), ft.Tab(label='校正'),
+                            ft.Tab(label='検査'), ft.Tab(label='資産'),
+                            ft.Tab(label='検証')],
                       indicator_color=SHU, divider_color=RULE),
             ft.TabBarView(controls=[
-                ft.Container(tab_inspect, padding=16),
+                ft.Container(tab_input, padding=16),
                 ft.Container(tab_kosei, padding=16),
+                ft.Container(tab_inspect, padding=16),
                 ft.Container(tab_assets, padding=16),
                 ft.Container(tab_verify, padding=16),
             ], expand=True),
@@ -467,6 +607,8 @@ if __name__ == '__main__':
     import os
     port = int(os.environ.get('KOBO_PORT', '0'))
     if port:   # Webサーバとして起動（view=WEB_BROWSERでuvicornが立つ。headlessでは開けないだけ）
-        ft.run(main, port=port, view=ft.AppView.WEB_BROWSER)
+        # host=0.0.0.0: スマフォ（同一LAN）から開いてカメラで底本を撮るため
+        ft.run(main, port=port, view=ft.AppView.WEB_BROWSER,
+               host=os.environ.get('KOBO_HOST', '0.0.0.0'))
     else:      # 通常のデスクトップ起動
         ft.run(main)

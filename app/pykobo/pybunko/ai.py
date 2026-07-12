@@ -61,12 +61,23 @@ class ClaudeClient:
         return bool(self.api_key)
 
     def message(self, prompt: str, system: str = '',
-                max_tokens: int = 4000, timeout: int = 300) -> str:
-        """1往復のメッセージ。返り値はテキストブロックの連結。"""
+                max_tokens: int = 4000, timeout: int = 300,
+                images: list[tuple[str, str]] | None = None) -> str:
+        """1往復のメッセージ。返り値はテキストブロックの連結。
+
+        images は (media_type, base64データ) のリスト。画像→テキストの
+        順で content ブロックに積む（vision.py の書き起こしで使う）。
+        """
         if not self.api_key:
             raise RuntimeError('ANTHROPIC_API_KEY が設定されていません')
+        content: str | list = prompt
+        if images:
+            content = [{'type': 'image',
+                        'source': {'type': 'base64', 'media_type': mt,
+                                   'data': b64}} for mt, b64 in images]
+            content.append({'type': 'text', 'text': prompt})
         body = {'model': self.model, 'max_tokens': max_tokens,
-                'messages': [{'role': 'user', 'content': prompt}]}
+                'messages': [{'role': 'user', 'content': content}]}
         if system:
             body['system'] = system
         req = urllib.request.Request(
