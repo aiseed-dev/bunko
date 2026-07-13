@@ -466,7 +466,7 @@ def main(page: ft.Page):
             ed_state['license'] = l_field.value or ''
             ed_status.value = '書誌情報を更新しました'
             _ed_update_status()
-            page.close(dlg)
+            page.pop_dialog()
             page.update()
 
         dlg = ft.AlertDialog(
@@ -475,11 +475,15 @@ def main(page: ft.Page):
             content=ft.Column([t_field, a_field, l_field], tight=True,
                               width=380, spacing=12),
             actions=[
-                ft.TextButton('キャンセル', on_click=lambda ev: page.close(dlg)),
+                ft.TextButton('キャンセル',
+                              on_click=lambda ev: page.pop_dialog()),
                 ft.FilledButton('反映', on_click=_apply),
             ],
         )
-        page.open(dlg)
+        # Flet 0.85のダイアログAPIは show_dialog/pop_dialog
+        # （page.open/page.close は旧0.2x系のAPIで存在しない ──
+        # 実機のメニュークリックでAttributeErrorになり発覚）
+        page.show_dialog(dlg)
 
     async def ed_open(e):
         """開く。.pykobo=工房の作業ファイル（構造化・組版モードも復元）／
