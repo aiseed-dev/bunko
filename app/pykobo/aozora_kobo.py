@@ -151,7 +151,13 @@ def main(page: ft.Page):
     # 著作権（license）は本文（青空注記テキスト）に行として書く場所が
     # ないため、.pykobo側の付随データとして持つ（title/authorは本文の
     # 1・2行目のまま ── 公式の入力規則を崩さない）。
-    ed_state = {'filename': 'draft.pykobo', 'mode': 'normal', 'license': ''}
+    # dialect: 'aozora'（青空注記形式・既定）/ 'asciidoc'。AsciiDocは
+    # pyasciidoc(pywashiのformat="asciidoc")に丸ごと委譲する別の記法で、
+    # pybunko.parse()のDocumentモデルを経由しない（外字注記・字下げ等の
+    # 青空注記特有の概念が無いため、変換点検・写真書き起こし・JSON/EPUB
+    # 書き出しはaozora専用のまま。要 [asciidoc] エクストラ）。
+    ed_state = {'filename': 'draft.pykobo', 'mode': 'normal', 'license': '',
+               'dialect': 'aozora'}
 
     def _ed_get_title_author():
         lines = (ed_text.value or '').split('\n')
@@ -429,8 +435,11 @@ def main(page: ft.Page):
         ed_state['filename'] = 'draft.pykobo'
         ed_state['mode'] = 'normal'
         ed_state['license'] = ''
+        ed_state['dialect'] = 'aozora'
         for k, mi in mi_mode.items():
             mi.leading = _check(k == 'normal')
+        for k, mi in mi_dialect.items():
+            mi.leading = _check(k == 'aozora')
         _update_doc_title()
         ed_status.value = '新規作成しました'
         _ed_update_status()
@@ -474,13 +483,13 @@ def main(page: ft.Page):
 
     async def ed_open(e):
         """開く。.pykobo=工房の作業ファイル（構造化・組版モードも復元）／
-        .txt・.zip=青空注記テキストの取り込み（本文だけを読み込む・
-        取り込み後は「.pykobo」として保存し直す前提）。"""
+        .txt・.zip=青空注記テキストの取り込み／.adoc=AsciiDocの取り込み
+        （本文だけを読み込む・取り込み後は「.pykobo」として保存し直す前提）。"""
         from pybunko.convert import read_text
         files = await ed_picker.pick_files(
-            dialog_title='開く（.pykobo=作業ファイル／.txt・.zip=青空注記テキスト）',
+            dialog_title='開く（.pykobo=作業ファイル／.txt・.zip=青空注記／.adoc=AsciiDoc）',
             file_type=ft.FilePickerFileType.CUSTOM,
-            allowed_extensions=['pykobo', 'txt', 'zip'], with_data=True)
+            allowed_extensions=['pykobo', 'txt', 'zip', 'adoc'], with_data=True)
         if not files:
             return
         f = files[0]
@@ -492,7 +501,13 @@ def main(page: ft.Page):
                 text = obj.get('source', '')
                 mode = obj.get('layout_mode', 'normal')
                 license_ = obj.get('license', '')
+                dialect = obj.get('dialect', 'aozora')
                 filename = f.name
+            elif f.name.endswith('.adoc'):
+                data = f.bytes if f.bytes is not None else Path(f.path).read_bytes()
+                text = data.decode('utf-8-sig')
+                mode, license_, dialect = 'normal', '', 'asciidoc'
+                filename = f'{Path(f.name).stem}.pykobo'
             else:
                 if f.bytes is not None:        # Web: バイトで来る
                     import io as _io
@@ -508,13 +523,15 @@ def main(page: ft.Page):
                         text = data.decode('shift_jis', errors='replace')
                 else:                          # デスクトップ: パスで来る
                     text = read_text(f.path)
-                mode = 'normal'
-                license_ = ''  # プレーンテキストは著作権を運べない
+                mode, license_, dialect = 'normal', '', 'aozora'
                 filename = f'{Path(f.name).stem}.pykobo'
             ed_state['mode'] = mode if mode in mi_mode else 'normal'
             ed_state['license'] = license_
+            ed_state['dialect'] = dialect if dialect in mi_dialect else 'aozora'
             for k, mi in mi_mode.items():
                 mi.leading = _check(k == ed_state['mode'])
+            for k, mi in mi_dialect.items():
+                mi.leading = _check(k == ed_state['dialect'])
             _ed_push_undo()
             ed_text.value = text
             ed_state['filename'] = filename
@@ -540,6 +557,7 @@ def main(page: ft.Page):
             'source': ed_text.value or '',
             'layout_mode': ed_state['mode'],
             'license': ed_state.get('license', ''),
+            'dialect': ed_state.get('dialect', 'aozora'),
         }, ensure_ascii=False, indent=1).encode('utf-8')
         name = ed_state['filename'] or 'draft.pykobo'
         if not name.endswith('.pykobo'):
@@ -581,6 +599,10 @@ def main(page: ft.Page):
             text = ed_text.value or ''
             if not text.strip():
                 return
+            if ed_state['dialect'] == 'asciidoc':
+                ed_status.value = '青空注記テキストの書き出しは青空注記モード専用です'
+                page.update()
+                return
             try:
                 data = _ed_encode(text, enc)
             except UnicodeEncodeError as ex:
@@ -615,13 +637,20 @@ def main(page: ft.Page):
         ed_status.value = f'機械チェック {len(fs)} 件'
         page.update()
 
+    def _render_washi_html(text: str, opts: dict) -> str:
+        """dialectに応じてHTML化する（aozora=pybunko経由・asciidoc=pywashi直結）。"""
+        if ed_state['dialect'] == 'asciidoc':
+            import pywashi
+            return pywashi.render(text, format='asciidoc', **opts)
+        from pybunko import parse as _parse
+        from pybunko.formats import to_washi_html
+        return to_washi_html(_parse(text), **opts)
+
     def _washi_png(text: str) -> bytes:
         """washi組版の1頁目をPNGに（昔のワープロの印刷プレビュー相当）。"""
         import subprocess, tempfile
-        from pybunko import parse as _parse
-        from pybunko.formats import to_washi_html
         opts, (w, h) = _washi_opts()
-        html = to_washi_html(_parse(text), **opts)
+        html = _render_washi_html(text, opts)
         with tempfile.TemporaryDirectory() as td:
             html_p = Path(td) / 'p.html'
             png_p = Path(td) / 'p.png'
@@ -657,6 +686,13 @@ def main(page: ft.Page):
                 page.update()
         page.run_thread(work)
 
+    def _ed_asciidoc_title(text: str) -> str:
+        """AsciiDocの文書タイトル（先頭の"= "行）。無ければファイル名。"""
+        for line in text.split('\n'):
+            if line.startswith('= '):
+                return line[2:].strip()
+        return Path(ed_state['filename']).stem
+
     def ed_pdf(e):
         text = ed_text.value or ''
         if not text.strip():
@@ -666,15 +702,31 @@ def main(page: ft.Page):
 
         def work():
             try:
-                from pybunko import parse as _parse
-                from pybunko.formats import to_pdf
-                doc = _parse(text)
                 out = Path('print_out')
                 out.mkdir(exist_ok=True)
-                safe = ''.join(c for c in (doc.title or 'draft')
-                               if c not in '/\\:*?"<>|')
                 opts, _ = _washi_opts()
-                path = to_pdf(doc, str(out / f'{safe}.pdf'), **opts)
+                if ed_state['dialect'] == 'asciidoc':
+                    import tempfile
+                    import pywashi
+                    title = _ed_asciidoc_title(text)
+                    safe = ''.join(c for c in (title or 'draft')
+                                  if c not in '/\\:*?"<>|')
+                    html = pywashi.render(text, format='asciidoc', **opts)
+                    with tempfile.NamedTemporaryFile(
+                            'w', suffix='.html', delete=False,
+                            encoding='utf-8') as f:
+                        f.write(html)
+                        html_p = Path(f.name)
+                    pdf_p = out / f'{safe}.pdf'
+                    pywashi.to_pdf(html_p, pdf_p)
+                    path = str(pdf_p)
+                else:
+                    from pybunko import parse as _parse
+                    from pybunko.formats import to_pdf
+                    doc = _parse(text)
+                    safe = ''.join(c for c in (doc.title or 'draft')
+                                  if c not in '/\\:*?"<>|')
+                    path = to_pdf(doc, str(out / f'{safe}.pdf'), **opts)
                 ed_status.value = f'✓ 印刷用PDF: {path}'
             except Exception as ex:
                 ed_status.value = f'PDF化に失敗: {ex}'
@@ -685,7 +737,15 @@ def main(page: ft.Page):
 
     # ── ツール: 今エディタにある文書に対して適用する（別画面は持たない） ──
     def ed_tool_inspect(e):
-        """変換点検 —— 未対応注記・未解決外字・統計を下部に出す。"""
+        """変換点検 —— 未対応注記・未解決外字・統計を下部に出す
+        （青空注記専用。外字注記・字下げ等はAsciiDocに無い概念のため）。"""
+        if ed_state['dialect'] == 'asciidoc':
+            ed_report.controls = [ft.Text(
+                '変換点検は青空注記専用です（AsciiDocには外字注記・'
+                '未対応注記の概念がありません）。', color=MUTED)]
+            ed_status.value = '変換点検はAsciiDocモードでは対象外です'
+            page.update()
+            return
         rep = inspect_work(ed_text.value or '')
         ung, unk = rep['unresolved_gaiji'], rep['unknown_notes']
         rows = [ft.Text('　'.join(f'{k} {v}' for k, v in rep['stats'].items()),
@@ -739,7 +799,13 @@ def main(page: ft.Page):
         page.run_thread(work)
 
     async def ed_tool_photo(e):
-        """写真から書き起こして、今の文書のカーソル位置に取り込む。"""
+        """写真から書き起こして、今の文書のカーソル位置に取り込む
+        （書き起こしは青空注記形式で出るため、青空注記モード専用）。"""
+        if ed_state['dialect'] == 'asciidoc':
+            ed_status.value = ('写真からの書き起こしは青空注記モード専用です'
+                               '（VLMの出力が青空注記形式のため）')
+            page.update()
+            return
         files = await ed_picker.pick_files(
             dialog_title='底本ページの写真を選ぶ（複数可）',
             file_type=ft.FilePickerFileType.IMAGE,
@@ -793,6 +859,11 @@ def main(page: ft.Page):
         text = ed_text.value or ''
         if not text.strip():
             return
+        if ed_state['dialect'] == 'asciidoc':
+            ed_status.value = ('構造化データ（JSON）書き出しは青空注記モード専用です'
+                               '（Documentモデルが青空注記の構造前提のため）')
+            page.update()
+            return
         try:
             from pybunko import parse as _parse
             doc = _parse(text)
@@ -810,6 +881,11 @@ def main(page: ft.Page):
         """EPUB3として書き出す（Send to Kindle・Playブックス等で読める形）。"""
         text = ed_text.value or ''
         if not text.strip():
+            return
+        if ed_state['dialect'] == 'asciidoc':
+            ed_status.value = ('EPUB書き出しは青空注記モード専用です'
+                               '（Documentモデルが青空注記の構造前提のため）')
+            page.update()
             return
         ed_busy.visible = True
         page.update()
@@ -870,6 +946,27 @@ def main(page: ft.Page):
         leading=_check(ed_state['mode'] == 'genko'),
         on_click=_set_mode('genko'))
 
+    # 記法（本文の書き方）: 青空注記形式(既定)／AsciiDoc。組版モードとは
+    # 独立（AsciiDocでも原稿用紙・縦書きにできる・要[asciidoc]エクストラ）。
+    mi_dialect = {}
+
+    def _set_dialect(v):
+        def handler(e):
+            ed_state['dialect'] = v
+            for k, mi in mi_dialect.items():
+                mi.leading = _check(k == v)
+            page.update()
+        return handler
+
+    mi_dialect['aozora'] = ft.MenuItemButton(
+        content=ft.Text('青空注記形式', size=15),
+        leading=_check(ed_state['dialect'] == 'aozora'),
+        on_click=_set_dialect('aozora'))
+    mi_dialect['asciidoc'] = ft.MenuItemButton(
+        content=ft.Text('AsciiDoc（要 pyasciidoc）', size=15),
+        leading=_check(ed_state['dialect'] == 'asciidoc'),
+        on_click=_set_dialect('asciidoc'))
+
     ed_menubar = ft.MenuBar(
         style=ft.MenuStyle(bgcolor=PAPER_HI),
         controls=[
@@ -879,6 +976,9 @@ def main(page: ft.Page):
                 _mi('保存', ed_save, 'Ctrl+S'),
                 ft.Divider(height=1, color=RULE),
                 _mi('書誌情報（題名・著者・著作権）…', ed_show_bibinfo),
+                ft.SubmenuButton(content=ft.Text('記法', size=15),
+                                 controls=[mi_dialect['aozora'],
+                                          mi_dialect['asciidoc']]),
                 ft.Divider(height=1, color=RULE),
                 ft.SubmenuButton(content=ft.Text('エクスポート', size=15),
                                  controls=[
