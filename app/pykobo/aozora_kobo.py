@@ -191,22 +191,36 @@ def main(page: ft.Page):
         bgcolor=PAPER_HI, text_style=ft.TextStyle(size=16, color=INK),
         hint_text='題名\n著者名\n\n　本文をここに（青空注記形式）…')
     ed_preview = ft.Image(src='', fit=ft.BoxFit.CONTAIN, expand=True)
+    # ホイール/ピンチで拡大縮小・ドラッグで移動（PNGは2倍解像度で描画して
+    # あるので、拡大しても文字が読める。実機テストの指摘
+    # 「プレビューが拡大されない」への対応）
+    ed_preview_zoom = ft.InteractiveViewer(
+        content=ed_preview, expand=True,
+        min_scale=0.5, max_scale=8, scale_enabled=True, pan_enabled=True)
     ed_panel = ft.Container(
         ft.Column([
             ft.Row([
                 ft.Text('組版プレビュー（A4・1頁目）', size=CAPTION, color=MUTED,
                         expand=True),
+                ft.IconButton(ft.Icons.OPEN_IN_FULL, icon_size=18,
+                              icon_color=MUTED,
+                              tooltip='パネルを広げる/戻す',
+                              on_click=lambda e: _ed_panel_toggle_width()),
                 ft.IconButton(ft.Icons.CLOSE, icon_size=18, icon_color=MUTED,
                               tooltip='プレビューを閉じる',
                               on_click=lambda e: _ed_panel_hide()),
             ]),
-            ed_preview,
+            ed_preview_zoom,
         ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
         width=360, bgcolor=PAPER_HI, padding=8, border_radius=6,
         visible=False)
 
     def _ed_panel_hide():
         ed_panel.visible = False
+        page.update()
+
+    def _ed_panel_toggle_width():
+        ed_panel.width = 760 if ed_panel.width == 360 else 360
         page.update()
     ed_report = ft.ListView(height=150, spacing=4)
     ed_busy = ft.ProgressRing(width=18, height=18, color=SHU, visible=False)
@@ -651,7 +665,13 @@ def main(page: ft.Page):
         return to_washi_html(_parse(text), **opts)
 
     def _washi_png(text: str) -> bytes:
-        """washi組版の1頁目をPNGに（昔のワープロの印刷プレビュー相当）。"""
+        """washi組版の1頁目をPNGに（昔のワープロの印刷プレビュー相当）。
+
+        2倍解像度で描画する ── プレビューをInteractiveViewerで拡大した
+        とき文字が潰れないようにするため。--window-sizeはCSSピクセル指定
+        なのでそのまま（A4寸法不変）、--force-device-scale-factor=2で
+        出力PNGだけが2倍(1588×2246)になる（実測で確認）。
+        """
         import subprocess, tempfile
         opts, (w, h) = _washi_opts()
         html = _render_washi_html(text, opts)
@@ -661,6 +681,7 @@ def main(page: ft.Page):
             html_p.write_text(html, encoding='utf-8')
             subprocess.run(
                 ['google-chrome', '--headless', '--disable-gpu',
+                 '--force-device-scale-factor=2',
                  f'--window-size={w},{h}', f'--screenshot={png_p}',
                  html_p.resolve().as_uri()],
                 check=True, capture_output=True)
