@@ -430,7 +430,7 @@ def main(page: ft.Page):
     ed_text.on_selection_change = _on_sel
     ed_text.on_change = _on_change
 
-    # ── キーボードショートカット（Ctrl+S 保存 / Ctrl+Z / Ctrl+Y） ──
+    # ── キーボードショートカット（Ctrl+S 保存 / Ctrl+Z / Ctrl+Y / Ctrl+P 印刷） ──
     def _on_key(e: ft.KeyboardEvent):
         if not e.ctrl:
             return
@@ -441,6 +441,8 @@ def main(page: ft.Page):
             _ed_do_undo()
         elif k == 'Y':
             _ed_do_redo()
+        elif k == 'P':
+            ed_print(None)
     page.on_keyboard_event = _on_key
 
     def ed_new(e):
@@ -717,6 +719,52 @@ def main(page: ft.Page):
             if line.startswith('= '):
                 return line[2:].strip()
         return Path(ed_state['filename']).stem
+
+    def ed_print(e):
+        """印刷（Ctrl+P）── 印刷ダイアログを開く（普通のワープロの作法）。
+
+        組版HTMLをブラウザで開き window.print() を自動発火させる。
+        Chromeの印刷ダイアログにプリンタ選択・部数・両面・PDF保存が
+        全部そろっており、PDF生成も元々Chromeの印刷経路なので
+        ダイアログのプレビュー＝仕上がりになる。ファイルへ黙って書き
+        出すだけの旧「印刷用PDF」はエクスポートへ移動。
+        """
+        text = ed_text.value or ''
+        if not text.strip():
+            ed_status.value = '本文が空です'
+            page.update()
+            return
+        ed_busy.visible = True
+        page.update()
+
+        def work():
+            try:
+                import tempfile
+                import webbrowser
+                opts, _ = _washi_opts()
+                html = _render_washi_html(text, opts)
+                html = html.replace(
+                    '</body>',
+                    '<script>window.addEventListener("load", '
+                    '() => window.print());</script>\n</body>')
+                if page.web:
+                    # Web版: サーバ側でブラウザは開けないので、assets経由で
+                    # 利用者のブラウザに新しいタブとして開かせる
+                    out = Path(__file__).parent / 'assets' / 'print_preview.html'
+                    out.write_text(html, encoding='utf-8')
+                    page.launch_url('/print_preview.html')
+                else:
+                    out = Path(tempfile.gettempdir()) / 'pykobo_print.html'
+                    out.write_text(html, encoding='utf-8')
+                    webbrowser.open(out.resolve().as_uri())
+                ed_status.value = ('印刷ダイアログを開きました'
+                                   '（プリンタ選択・PDF保存もそこから）')
+            except Exception as ex:
+                ed_status.value = f'印刷に失敗: {ex}'
+            finally:
+                ed_busy.visible = False
+                page.update()
+        page.run_thread(work)
 
     def ed_pdf(e):
         text = ed_text.value or ''
@@ -1016,6 +1064,7 @@ def main(page: ft.Page):
                         ]),
                     _mi('構造化データ（JSON）', ed_export_json),
                     _mi('EPUB', ed_export_epub),
+                    _mi('印刷用PDF（print_out/へ）', ed_pdf),
                 ]),
             ]),
             _menu('編集', [
@@ -1039,7 +1088,7 @@ def main(page: ft.Page):
                 mi_mode['normal'], mi_mode['genko'],
                 ft.Divider(height=1, color=RULE),
                 _mi('組版プレビュー', ed_preview_update),
-                _mi('印刷用PDF', ed_pdf),
+                _mi('印刷…', ed_print, 'Ctrl+P'),
             ]),
             _menu('ツール', [
                 _mi('変換点検（未対応注記・外字）', ed_tool_inspect),
