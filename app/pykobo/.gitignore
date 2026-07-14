@@ -7,3 +7,4 @@ venv/
 aozora_cache/*
 !aozora_cache/1567_ruby_4948.zip
 assets_out/
+build/
