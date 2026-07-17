@@ -622,6 +622,100 @@ def main(page: ft.Page):
             ed_status.value = f'保存できませんでした: {ex}'
         page.update()
 
+    # ── 外部エディタ連携（デスクトップ版専用） ─────────────────────────
+    # 本文（素のテキスト）を作業ファイルに書き出し、利用者の好きなエディタで
+    # 開く。エディタは KOBO_EDITOR → VISUAL → EDITOR → OSの既定アプリの順で
+    # 決める（工房は特定製品を知らない ── .md/.txt こそが連携インターフェース）。
+    # 外部での保存は mtime 監視で通知だけ行い、勝手には取り込まない
+    # （工房側の未保存編集を黙って潰さないため）。反映は「取り込む」で明示的に。
+    ed_ext = {'path': None, 'mtime': 0.0, 'watching': False}
+
+    def _ext_editor_cmd() -> list[str] | None:
+        import shlex
+        for env in ('KOBO_EDITOR', 'VISUAL', 'EDITOR'):
+            v = os.environ.get(env)
+            if v:
+                return shlex.split(v)
+        return None  # None = OSの既定アプリで開く
+
+    def _ext_watch():
+        """外部ファイルの保存を監視して知らせる（1秒ポーリング）。"""
+        while ed_ext['path'] is not None:
+            time.sleep(1)
+            p = ed_ext['path']
+            if p is None:
+                break
+            try:
+                m = p.stat().st_mtime
+            except OSError:
+                continue
+            if m > ed_ext['mtime']:
+                ed_ext['mtime'] = m
+                ed_status.value = ('外部エディタで保存されました ── '
+                                   'ファイル→「外部エディタから取り込む」で反映')
+                page.update()
+        ed_ext['watching'] = False
+
+    def ed_ext_open(e):
+        """本文を作業ファイルへ書き出し、外部エディタで開く。"""
+        if page.web:
+            ed_status.value = '外部エディタ連携はデスクトップ版専用です'
+            page.update()
+            return
+        import subprocess, sys, tempfile
+        ext = '.adoc' if ed_state['dialect'] == 'asciidoc' else '.txt'
+        d = Path(tempfile.gettempdir()) / 'pykobo_external'
+        d.mkdir(exist_ok=True)
+        p = d / f"{Path(ed_state['filename'] or 'draft.pykobo').stem}{ext}"
+        try:
+            p.write_text(ed_text.value or '', encoding='utf-8')
+            ed_ext['path'] = p
+            ed_ext['mtime'] = p.stat().st_mtime
+            cmd = _ext_editor_cmd()
+            if cmd:
+                subprocess.Popen(cmd + [str(p)])
+            elif sys.platform == 'darwin':
+                subprocess.Popen(['open', str(p)])
+            elif os.name == 'nt':
+                os.startfile(str(p))  # noqa: S606
+            else:
+                subprocess.Popen(['xdg-open', str(p)])
+            if not ed_ext['watching']:
+                ed_ext['watching'] = True
+                page.run_thread(_ext_watch)
+            ed_status.value = (f'外部エディタで開きました: {p} ── '
+                               '向こうで保存したらここに通知が出ます')
+        except Exception as ex:
+            ed_ext['path'] = None
+            ed_status.value = f'外部エディタで開けませんでした: {ex}'
+        page.update()
+
+    def ed_ext_pull(e):
+        """外部エディタで編集・保存された作業ファイルを本文へ取り込む。"""
+        p = ed_ext['path']
+        if p is None or not p.exists():
+            ed_status.value = ('取り込む対象がありません ── まず'
+                               '「外部エディタで開く」を実行してください')
+            page.update()
+            return
+        try:
+            text = p.read_text(encoding='utf-8')
+        except Exception as ex:
+            ed_status.value = f'取り込めませんでした: {ex}'
+            page.update()
+            return
+        if text == (ed_text.value or ''):
+            ed_status.value = '外部ファイルと本文は同じ内容です（変更なし）'
+            page.update()
+            return
+        _ed_push_undo()  # 取り込みは Ctrl+Z で戻せる
+        ed_text.value = text
+        _ed_last_snapshot['v'] = text
+        ed_ext['mtime'] = p.stat().st_mtime
+        ed_status.value = f'外部エディタの内容を取り込みました（{len(text):,}字）'
+        _ed_update_status()
+        page.update()
+
     def _ed_encode(text, enc):
         """指定エンコードでバイト列へ（Shift_JIS範囲外は例外を投げる）。"""
         if enc == 'sjis':
@@ -1127,6 +1221,9 @@ def main(page: ft.Page):
                 _mi('新規', ed_new),
                 _mi('開く…', ed_open),
                 _mi('保存', ed_save, 'Ctrl+S'),
+                ft.Divider(height=1, color=RULE),
+                _mi('外部エディタで開く', ed_ext_open),
+                _mi('外部エディタから取り込む', ed_ext_pull),
                 ft.Divider(height=1, color=RULE),
                 _mi('書誌情報（題名・著者・著作権）…', ed_show_bibinfo),
                 ft.SubmenuButton(content=ft.Text('記法', size=15),
