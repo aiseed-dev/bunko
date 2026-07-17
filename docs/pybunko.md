@@ -12,7 +12,7 @@ doc = work.document()
 doc.to_epub('merosu.epub')      # Send to Kindle / Play ブックスへ
 html = doc.to_html()            # <ruby> タグ付きHTML
 sentences = doc.to_speech_text()  # TTS向け（ルビを読みとして採用）
-json_str = doc.to_json()        # Unicode構造化データ（Flutter等が直接読める一次表現）
+json_str = doc.to_json()        # Unicode構造化データ（どの言語からも読める一次表現）
 ```
 
 Shift_JIS 注記付きテキスト → Unicode JSON は CLI 一発でも:
@@ -23,7 +23,7 @@ python -m pybunko merosu.txt --indent 2
 ```
 
 パイプライン全体・JSONスキーマ・**注記や出力形式の増やし方**は [MANUAL.md](MANUAL.md)、
-全体アーキテクチャ・決定記録（**読者アプリ=Flutter／工作員ツール=Flet**）は [DESIGN.md](DESIGN.md) を参照。
+全体アーキテクチャ・決定記録（**工作員ツール=Flet／一覧は静的サイト**）は [DESIGN.md](DESIGN.md) を参照。
 
 ## 設計原則
 
@@ -77,7 +77,7 @@ doc.to_html() / to_epub(path) / to_speech_text()
 
 ## 何に使えるか
 
-- **リーダーアプリ**の土台（Flet / Flutter バックエンド / CLI）
+- **リーダー・ビューア**の土台（Flet / 静的サイト / CLI）
 - **電子書籍化パイプライン**（一括EPUB変換 → Kindle・Play ブックス）
 - **朗読・オーディオブック**（`reading` はルビ由来なので難読漢字を誤読しない）
 - **研究・NLP・RAG**（構造化済みの近代日本語コーパスとして）

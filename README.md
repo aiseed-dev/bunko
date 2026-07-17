@@ -1,80 +1,60 @@
 # 文庫（bunko） — dev.aiseed.bunko
 
-青空文庫を第一の蔵書とする、**サーバなし・オフライン**の読書アプリ（Flutter）。
-Web / Linux / Android / iOS / デスクトップに同一コードで出せます。
+青空文庫の正本（注記付きテキスト）を**構造化Unicodeデータに変換する
+Pythonパイプライン（pybunko）**と、それを使う**工作員アプリ「青空工房」
+（Flet）**、および生成した**データ資産**。サーバなしで動きます。
+
+> かつて同居していた Flutter 読者アプリ（app/bunko）は廃止しました。
+> Webでの閲覧は青空文庫本体があるため、読者向けの独自アプリは持ちません。
+> 書架・目次のような一覧は静的サイトが向いています（tools/examples/ に
+> 試作、配信は [cf-publish](https://github.com/aiseed-dev/cf-publish) で）。
+> コードは git 履歴（〜2026-07-17）から復元できます。
 
 ## 何が入っているか
 
-同梱するのは**データ資産2つ**だけ。実行時にPythonは要りません。
-
-| 資産 | 内容 |
+| 場所 | 中身 |
 |---|---|
-| `assets/aozora.db` | 書架メタ全17,335作品/981作家（SQLite）＋代表27作品の本文・図書カード（JSON列） |
-| `assets/fonts/ipaexm.ttf` | IPAex明朝 — 本文＋**JIS X 0213全外字**を1フォントで（外字は実Unicode文字で描く） |
+| `app/pykobo/pybunko/` | Python パイプライン ── 正本→Document→JSON/SQLite/EPUB/公式XHTML/フォント資産 |
+| `app/pykobo/` | 青空工房（Flet）── 執筆・変換確認・外字チェック・資産づくり |
+| `forms/` | FormRescue ── WordPressから分離した問い合わせフォームの受信箱（Flet 管理アプリ・ビルダー） |
+| `assets/` | データ資産 ── `aozora.db`（全17,335作品/981作家メタ＋代表27作品の本文）・IPAex明朝（JIS X 0213全外字入り）・`jis2ucs.json`・`cp932.bin` |
+| `tools/` | 開発用: `build_assets.py`・`build_gaiji_table.py`・examples/（静的な書架・ビューアの試作） |
+| `docs/` | DESIGN・MANUAL・KUMIHAN・LICENSING ほか（正本） |
 
-補助: `assets/jis2ucs.json`（外字面区点→Unicode, CC0）、`assets/cp932.bin`（Shift_JIS復号表）。
-
-## 画面
-
-1. **書架** — 五十音行タブ・検索（SQLiteメタを引くだけ）
-2. **図書カード** — 底本・初出・入力者/校正者・作家生没年（card列JSON。未取得はミラーから）
-3. **読書** — ルビ・傍点・見出し・字下げ。**横書き／縦書き切替**・文字サイズ変更
-4. **目次** — 見出し階層＋**章の分量バー**＋現在位置マーカー。見出しの無い長編には進捗ジャンプ（10%刻み）
-5. **音声読み上げ** — **ルビ＝読みデータで朗読**（難読漢字を誤読しない）。段落ハイライト同期・自動追従
-6. **コピー** — ドラッグ選択（ルビは選択対象外＝本文だけきれいにコピー）・全文コピー
-
-未取得の本文は GitHubミラー（raw.githubusercontent.com）から取得し、
-**Dart内で Shift_JIS復号→注記パース→doc列に保存**（次回からオフライン）。
+取得は GitHub ミラー（raw.githubusercontent.com）のみ・必ずキャッシュ経由。
 公式サーバー（aozora.gr.jp）には一切アクセスしません。
 
-## リポジトリ構成（アプリ＋資産パイプライン）
-
-```
-bunko/
-├── app/
-│   ├── bunko/                # Flutter 読者アプリ本体（lib/ web/ linux/ android/ ios/ …）
-│   │   └── assets -> ../../assets   # symlink（共有資産を参照）
-│   └── pykobo/               # 青空工房 ── Flet 工作員アプリ（検査・資産・検証）
-│       ├── pybunko/          #   Python側の全コード（中核＋official＋fonts）
-│       └── tests/            #   98テスト
-├── assets/                   # 共有データ資産（aozora.db・IPAex明朝・jis2ucs.json・cp932.bin）
-├── tools/                    # 開発用: build_assets.py・build_gaiji_table.py・examples/
-├── docs/                     # DESIGN・MANUAL・LICENSING ほか（正本）
-└── LICENSE                   # AGPL-3.0
-```
-
-`pip install -e './app/pykobo[epub]'` で `import pybunko`（ローカル専用・PyPIには個別登録しない）。
-全体設計は [docs/DESIGN.md](docs/DESIGN.md)、パイプラインの使い方・拡張の仕方は [docs/MANUAL.md](docs/MANUAL.md)、注記→変換の対応は [docs/KUMIHAN.md](docs/KUMIHAN.md)（本家「組版案内」の現代版）。
-
-## アーキテクチャ
-
-設計の正本は [docs/DESIGN.md](docs/DESIGN.md)。役割分担: **読者アプリ=Flutter（これ）／工作員ツール=Flet**。
-
-- 一次表現は「外字解決済みの構造化Unicodeデータ」（Document JSON）。
-  `lib/data/models.dart` は Python 版 `Document.to_dict()` と**スキーマ往復互換**。
-- `lib/data/aozora_parser.dart` — 注記パーサのDart移植（ルビ・外字・見出し・字下げ・装飾・挿絵）
-- `lib/data/db.dart` — SQLite（io=ファイル / web=wasm を条件付きインポートで切替）
-- `lib/ui/vertical_reader.dart` — 縦書き自前レイアウト（列送り右→左・ルビ右添え・括弧回転・句読点寄せ）
-
-## ビルド
+## 使い方
 
 ```bash
-cd app/bunko
-flutter test                 # 13 tests
-flutter build web --release  # web/sqlite3.wasm 同梱済み
-flutter build linux --release
-flutter build apk --release      # Android（他OSは各プラットフォーム上で）
+pip install -e './app/pykobo[epub]'   # import pybunko（ローカル専用・PyPI未登録）
+cd app/pykobo && flet run             # 青空工房（デスクトップ）
+KOBO_PORT=8789 python main.py         # 同・Webサーバ（LANのスマフォからも）
+pytest app/pykobo/tests               # 138テスト・完全オフライン
 ```
 
-データ資産の再生成（Python環境・pybunko が必要）:
+データ資産の再生成:
 
 ```bash
 python tools/build_assets.py
 ```
 
+全体設計は [docs/DESIGN.md](docs/DESIGN.md)、パイプラインの使い方・拡張の仕方は
+[docs/MANUAL.md](docs/MANUAL.md)、注記→変換の対応は
+[docs/KUMIHAN.md](docs/KUMIHAN.md)（本家「組版案内」の現代版）。
+
+## アーキテクチャ
+
+- 一次表現は「外字解決済みの構造化Unicodeデータ」（`Document`、
+  `parser.py` が唯一のパーサ）。出力形式は `formats.py` に関数を足す。
+- pybunko 本体はゼロ依存（標準ライブラリのみ）。EPUB・組版・フォント等の
+  重い依存は extras（`[epub]`/`[washi]`/`[font]`…）。
+- 縦書き・原稿用紙・PDF組版は [pywashi](https://github.com/aiseed-dev/pywashi)、
+  AsciiDoc は [pyasciidoc](https://github.com/aiseed-dev/pyasciidoc) に委譲。
+
 ## ライセンス
 
 コードは **AGPL-3.0-or-later**（Copyright (C) 2026 aiseed.dev）。データは **CC BY 4.0 基本**（出典: 青空文庫）。
-iOS等ストア配布はデュアルライセンスで対応。詳細・例外（CC0対応表・IPAexフォント等）は [docs/LICENSING.md](docs/LICENSING.md)。
+詳細・例外（CC0対応表・IPAexフォント等）は [docs/LICENSING.md](docs/LICENSING.md)。
 外字対応表は aozora2html 由来（CC0）。図書カードのメタデータは CC BY 4.0（青空文庫）。
 収録ファイルの利用は「青空文庫収録ファイルの取り扱い規準」に従ってください。

@@ -5,7 +5,7 @@
 
 このマニュアルは「入口」と「拡張の仕方」を書いたもの。**追加作業は永久に続く**ので、
 新しい注記や出力形式を足すときは、下流（parser / formats）へ積み増していけばよい。
-全体アーキテクチャと役割分担（**読者アプリ=Flutter／工作員ツール=Flet**）・決定記録は
+全体アーキテクチャと役割分担（**工作員ツール=Flet／一覧は静的サイト**。Flutter読者アプリは2026-07-17廃止）・決定記録は
 [DESIGN.md](DESIGN.md) を参照（この2文書の置き場=**bunko/docs/** が正本）。
 
 ---
@@ -218,13 +218,13 @@ pytest
 
 | 対象 | 技術 | このライブラリとの接点 |
 |---|---|---|
-| **読者アプリ** | **Flutter**（Web/iOS/Android/デスクトップ） | Pythonは実行時に呼ばない。`build_sqlite` で作った **aozora.db**（メタ＋doc/card JSON列）と、`python -m pybunko.fonts` の**外字フォント**を同梱して描くだけ |
+| **静的ビューア等** | HTML/JS（tools/examples/） | Pythonは実行時に呼ばない。`build_sqlite` で作った **aozora.db**（メタ＋doc/card JSON列）と、`python -m pybunko.fonts` の**外字フォント**を読むだけ |
 | **工作員ツール** | **Flet**（Python） | ライブラリを**直接 import**。変換確認・外字チェック・DB構築・ゴールデン検証。app/pykobo（AISeed工房）がその置き場 |
 
 読者向けの成果物は「データ資産」:
 
 ```bash
-# 読者アプリ（Flutter）の共有資産（bunko/assets/）を一括生成
+# データ資産（bunko/assets/）を一括生成
 python tools/build_assets.py                 # aozora.db・フォント・外字表・SJIS表
 
 # 個別に作る場合
@@ -274,7 +274,6 @@ SBV2のコードはAGPL＝本プロジェクトと同系）。
 | **pybunko**（本体） | 正本→Unicode Document→JSON/SQLite/各形式（このマニュアル） |
 | **pybunko.official** | 公式XHTML再現（検証・凍結維持）＋外字フォント資産づくり |
 | app/**pykobo** | **Flet 工作員アプリ「AISeed工房」**（検査・資産・検証＋EPUB・TTS） |
-| app/**bunko** | **Flutter 読者アプリ「AISeed文庫」**（aozora.db＋フォント同梱・全OS足場） |
 | aiseed-dev/**washi-md** | Markdown→縦書き・PDF組版（`[washi]`で委譲） |
 | aiseed-dev/**mdit-py-cjk-friendly** | CJK対応 markdown-it-py（ルビ・傍点bouten） |
 | aiseed-dev/**flutter_svg_cjk_friendly** | FlutterのSVG CJK/縦書き補助 |

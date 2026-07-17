@@ -6,8 +6,7 @@
 
 | 対象 | ライセンス |
 |---|---|
-| **コード全般**（pybunko・工房・tools・Flutterアプリ） | **AGPL-3.0-or-later**（ルートのLICENSE） |
-| app/bunko（iOS/App Store配布時） | AGPL ＋ aiseed.dev による**ストア配布用の個別許諾**（デュアル・下記） |
+| **コード全般**（pybunko・工房・tools） | **AGPL-3.0-or-later**（ルートのLICENSE） |
 | **データ資産**（assets/） | **CC BY 4.0 基本**（出典: 青空文庫）＋例外（下記） |
 
 ## 1. なぜコードは AGPL か
@@ -18,10 +17,14 @@
 - **適合性の実利**: EPUB出力が依存する `ebooklib` は **AGPL-3.0**。
   従来のMIT表記はEPUB機能を含む配布で潜在的な非適合を抱えていたが、
   AGPL採用でこの矛盾が解消される。
-- その他の依存はすべてAGPLと互換: Flutter/Dartパッケージ（BSD/MIT）、
-  flet（Apache-2.0）、washi-md / mdit-py-cjk-friendly（MIT・自作）。
+- その他の依存はすべてAGPLと互換:
+  flet（Apache-2.0）、pywashi / mdit-py-cjk-friendly（MIT・自作）。
 
-## 2. Flutterアプリ（iOS）とデュアルライセンス
+## 2. アプリストア配布とデュアルライセンス（歴史的記録）
+
+> Flutter 読者アプリは 2026-07-17 に廃止したため、本節の実務上の対象は
+> 現在ない。将来ストア配布するアプリ（Flet ビルド等）が出た場合に同じ
+> 方針を適用するための決定記録として残す。
 
 **問題**: GPL系ライセンスは Apple App Store の利用規約（追加の利用制限）と
 衝突するというのが通説（VLCがストアから取り下げられた事例）。

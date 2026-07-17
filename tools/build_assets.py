@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
-"""bunko アプリ同梱資産の生成（tools/ から実行: python tools/build_assets.py）
+"""bunko データ資産の生成（tools/ から実行: python tools/build_assets.py）
 - assets/aozora.db      … 全メタ＋代表作の doc/card JSON 充填
-- assets/jis2ucs.json   … 外字表（Dartパーサ用）
+- assets/jis2ucs.json   … 外字表（面区点→Unicode。静的ビューア等の非Python消費者用）
 - assets/cp932.bin      … Shift_JIS(cp932)→Unicode 復号表（uint16 LE ×65536 = 128KB）
 - assets/fonts/         … IPAex明朝（本文＋全外字を1フォントで）
 """
 import json, pathlib, shutil, struct, tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent  # bunko リポルート
-ASSETS = ROOT / "assets"   # 共有資産（app/bunko/assets はここへのsymlink）
+ASSETS = ROOT / "assets"   # データ資産の置き場
 (ASSETS / "fonts").mkdir(parents=True, exist_ok=True)
 
 # 1) cp932 復号表 ------------------------------------------------------

@@ -1,24 +1,30 @@
-# 設計書 ── 青空文庫 Python / Flutter スタック
+# 設計書 ── 青空文庫 Python スタック
 
 作成: 2026-07-11。この文書が全体設計の正本（置き場: **bunko/docs/**）。使い方の詳細は [MANUAL.md](MANUAL.md)。
+
+> **改定（2026-07-17）: Flutter 読者アプリ（app/bunko）を廃止。**
+> Webでの読書は青空文庫本体があるため、読者向けの独自アプリは持たない。
+> 書架・目次のような一覧は静的サイトで足りる（tools/examples/ に試作）。
+> Dartパーサとの「スキーマ往復互換」要件も消滅し、パーサは parser.py の
+> 1本になった。本文書中の Flutter への言及は決定当時の記録として残す。
+> コードは git 履歴（〜2026-07-17）から復元できる。
 
 ## 0.5 bunko リポジトリの構成（モノレポ）
 
 ```
 bunko/
-├── app/bunko/        # Flutter 読者アプリ（web/linux/android/ios/macos/windows）
-│   └── assets -> ../../assets   # symlink（Flutterはリポ外パスを参照できないため）
 ├── app/pykobo/       # AISeed工房 ── Flet 工作員アプリ
-│   ├── pybunko/      #   Python側の全コード（中核＋official＋fonts・98テスト）
+│   ├── pybunko/      #   Python側の全コード（中核＋official＋fonts・138テスト）
 │   └── tests/        #   ※PyPIには個別登録しない（ローカル編集インストール専用）
-├── assets/           # 共有データ資産（aozora.db・IPAex明朝・jis2ucs.json・cp932.bin）
+├── forms/            # FormRescue ── フォーム受信箱（Flet管理アプリ・ビルダー）
+├── assets/           # データ資産（aozora.db・IPAex明朝・jis2ucs.json・cp932.bin）
 ├── tools/            # build_assets.py・build_gaiji_table.py・examples/
 └── docs/             # この設計書・マニュアル・LICENSING（正本）
 ```
 
 ## 0. 一言要約
 
-**正本（静的テキスト）→ Unicode構造化データ（一次表現）→ 読者はFlutter、工作員はFlet。**
+**正本（静的テキスト）→ Unicode構造化データ（一次表現）→ 工作員はFlet、一覧は静的サイト。**
 変換・検証・データ資産づくりはPythonが担う。サーバは建てない。
 
 ## 1. 思想（変わらないもの）
