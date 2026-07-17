@@ -31,12 +31,14 @@ def read_text(src: str) -> str:
     Shift_JIS（errors='replace'）で読む。
     """
     if src.startswith(('http://', 'https://')):
-        data = urllib.request.urlopen(src).read()
+        data = urllib.request.urlopen(src, timeout=30).read()
     else:
         data = Path(src).read_bytes()
     if src.endswith('.zip') or data[:2] == b'PK':
         with zipfile.ZipFile(io.BytesIO(data)) as zf:
-            name = next(n for n in zf.namelist() if n.endswith('.txt'))
+            name = next((n for n in zf.namelist() if n.endswith('.txt')), None)
+            if name is None:
+                raise ValueError(f'zipに.txtファイルが無い: {src}')
             data = zf.read(name)
     try:
         return data.decode('utf-8-sig')

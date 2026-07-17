@@ -13,6 +13,7 @@ aozora_tts.py — 青空文庫リーダーの音声出力モジュール
 from __future__ import annotations
 import json
 import re
+import urllib.parse
 import urllib.request
 
 Segment = tuple[str, str | None]  # (text, ruby)
@@ -107,8 +108,10 @@ if __name__ == '__main__':
     # デモ: 走れメロスの冒頭段落を読み上げテキスト化
     import aozora_shinkan as app
     from aozora_shinkan import Work
-    w = Work(title='走れメロス', title_yomi='', author='太宰治', author_yomi='',
-             text_url='https://www.aozora.gr.jp/cards/000035/files/1567_ruby_4948.zip')
+    w = Work(work_id='035_1567', title='走れメロス', title_yomi='', author='太宰治',
+             author_yomi='', card_url='',
+             text_url='https://www.aozora.gr.jp/cards/000035/files/1567_ruby_4948.zip',
+             copyrighted=False)
     paragraphs = app.parse_paragraphs(app.load_work_text(w))
     speech = segments_to_speech(paragraphs[0])
     print('--- 原文（表示用） ---')

@@ -43,7 +43,7 @@ def load_all_works(source: str | None = None) -> list[dict]:
     """all_works.csv を読む。source はパス/URL（省略時は GitHub raw）。"""
     src = source or ALL_WORKS_URL
     if src.startswith(('http://', 'https://')):
-        data = urllib.request.urlopen(src).read()
+        data = urllib.request.urlopen(src, timeout=30).read()
     else:
         data = Path(src).read_bytes()
     return list(csv.DictReader(io.StringIO(data.decode('utf-8-sig'))))

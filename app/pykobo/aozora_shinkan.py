@@ -150,16 +150,24 @@ def main(page: ft.Page):
         page.update()
 
     def open_work(work: Work):
-        nonlocal current
         status.value = f'「{work.title}」を取得中…'
         page.update()
-        current = parse_paragraphs(load_work_text(work))
-        header.value = f'{work.title} ／ {work.author}'
-        render_reader()
-        search_view.visible, reader_view.visible = False, True
-        status.value = (f'{len(current)} 段落 ・ 手元にキャッシュ済み'
-                        '（次回からオフラインで開けます）')
-        page.update()
+
+        # 初回はミラーからzipを取得する重い処理。UIスレッドで回すと
+        # WebSocketが切れて完走しないので別スレッドへ（CLAUDE.md規則7）。
+        def work_load():
+            nonlocal current
+            try:
+                current = parse_paragraphs(load_work_text(work))
+                header.value = f'{work.title} ／ {work.author}'
+                render_reader()
+                search_view.visible, reader_view.visible = False, True
+                status.value = (f'{len(current)} 段落 ・ 手元にキャッシュ済み'
+                                '（次回からオフラインで開けます）')
+            except Exception as ex:
+                status.value = f'「{work.title}」の取得に失敗しました: {ex}'
+            page.update()
+        page.run_thread(work_load)
 
     def render_reader():
         reader.controls = [paragraph_view(s, font_size) for s in current]
@@ -176,10 +184,16 @@ def main(page: ft.Page):
 
     page.add(status, search_view, reader_view)
 
-    works.extend(load_catalog())
-    status.value = (f'パブリックドメイン {len(works):,} 作品 ── '
-                    'このアプリはGitHubミラーの静的ファイルだけで動いています')
-    page.update()
+    # カタログCSVの取得も重い＆オフライン初回は失敗しうるので別スレッド＋捕捉。
+    def load_catalog_bg():
+        try:
+            works.extend(load_catalog())
+            status.value = (f'パブリックドメイン {len(works):,} 作品 ── '
+                            'このアプリはGitHubミラーの静的ファイルだけで動いています')
+        except Exception as ex:
+            status.value = (f'カタログの取得に失敗しました（オフライン？）: {ex}')
+        page.update()
+    page.run_thread(load_catalog_bg)
 
 
 if __name__ == '__main__':

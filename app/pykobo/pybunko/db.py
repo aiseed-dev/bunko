@@ -138,14 +138,16 @@ def load_card(path: str, work_id: str) -> dict | None:
 
 def search(path: str, q: str, limit: int = 30) -> list[dict]:
     """作品名・著者名・よみ の部分一致検索（メタデータのみ・速い）。"""
-    like = f'%{q}%'
+    # q 中の LIKE ワイルドカード(% _)と escape 記号をリテラル化する
+    esc = q.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+    like = f'%{esc}%'
     con = sqlite3.connect(path)
     con.row_factory = sqlite3.Row
     try:
         rows = con.execute(
             "SELECT work_id,title,title_yomi,author,author_yomi,row,card_url "
-            "FROM works WHERE title LIKE ? OR title_yomi LIKE ? "
-            "OR author LIKE ? OR author_yomi LIKE ? "
+            "FROM works WHERE title LIKE ? ESCAPE '\\' OR title_yomi LIKE ? ESCAPE '\\' "
+            "OR author LIKE ? ESCAPE '\\' OR author_yomi LIKE ? ESCAPE '\\' "
             "ORDER BY (title=?) DESC, author_yomi, title_yomi LIMIT ?",
             (like, like, like, like, q, limit)).fetchall()
     finally:

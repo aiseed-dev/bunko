@@ -14,7 +14,7 @@ import html as _html
 import re as _re
 
 from .parser import parse
-from .formats import midashi_class
+from .formats import _wrap_occurrence, midashi_class
 
 CRLF = "\r\n"
 
@@ -122,9 +122,11 @@ def _ruby_inner(p) -> str:
         (f'<ruby><rb>{_esc(t)}</rb><rp>（</rp>'
          f'<rt>{_esc(r)}</rt><rp>）</rp></ruby>') if r else _esc(t)
         for t, r in p.segments)
-    for t, cls, tag in (p.decorations or []):
+    for x in (p.decorations or []):
+        t, cls, tag = x[0], x[1], x[2]
+        occ = x[3] if len(x) > 3 else 0
         e = _esc(t)
-        inner = inner.replace(e, f'<{tag} class="{cls}">{e}</{tag}>', 1)
+        inner = _wrap_occurrence(inner, e, f'<{tag} class="{cls}">{e}</{tag}>', occ)
     if p.image:
         src, w, h, cap = p.image
         dim = (f' width="{w}"' if w else '') + (f' height="{h}"' if h else '')
@@ -252,5 +254,11 @@ def to_official_html(text: str, *, css: str = '../../aozora.css',
 
 
 def to_official_bytes(text: str, **kwargs) -> bytes:
-    """公式XHTMLを Shift_JIS バイト列で返す（公式ファイルと同じ符号化）。"""
-    return to_official_html(text, **kwargs).encode('shift_jis', errors='replace')
+    """公式XHTMLを Shift_JIS バイト列で返す（公式ファイルと同じ符号化）。
+
+    Shift_JIS に無い文字（gaiji='font' の第3・第4水準など）は数値文字参照
+    (&#x…;) に落とす —— errors='replace' は全て '?' に置換して無言で欠字化
+    していた。文字参照なら XHTML として意味を保ったまま表示できる。
+    """
+    return to_official_html(text, **kwargs).encode('shift_jis',
+                                                   errors='xmlcharrefreplace')

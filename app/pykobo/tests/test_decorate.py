@@ -15,7 +15,9 @@ def _decos(text):
 
 def test_bouten():
     d = _decos("邪智暴虐［＃「邪智暴虐」に傍点］")
-    assert d == [("邪智暴虐", "sesame_dot", "em")]
+    # decorations は (対象, class, tag, 出現番号) の4要素（0=最初の出現）
+    assert [x[:3] for x in d] == [("邪智暴虐", "sesame_dot", "em")]
+    assert d[0][3] == 0
 
 
 def test_bouten_variants():
@@ -35,8 +37,8 @@ def test_underlines():
 
 def test_futoji_shatai():
     d = _decos("重要［＃「重要」は太字］")
-    assert d == [("重要", "futoji", "span")]
-    assert _decos("斜め［＃「斜め」は斜体］")[0] == ("斜め", "shatai", "span")
+    assert [x[:3] for x in d] == [("重要", "futoji", "span")]
+    assert _decos("斜め［＃「斜め」は斜体］")[0][:3] == ("斜め", "shatai", "span")
 
 
 def test_direction_filter():

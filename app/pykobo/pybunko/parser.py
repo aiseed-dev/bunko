@@ -26,9 +26,11 @@ RUBY_RE = re.compile(
     r'))'
     r'《(?P<ruby>[^》]+)》')
 # 装飾: ○○［＃「○○」に傍点／に二重傍線／は太字／の左に傍点 …］
+# 対象文字列と注記の間にはルビが挟まってよい（山月記《さんげつき》［＃「山月記」は…］。
+# aozora2html が処理できるパターン。rb はルビごと本文に残す）。
 _DECO_KW = '|'.join(decorate.KEYWORDS)
 DECORATE_RE = re.compile(
-    r'(?P<t>.+?)［＃「(?P=t)」(?:の(?P<dir>右|左|上|下)に|に|は)'
+    r'(?P<t>.+?)(?P<rb>《[^》]+》)?［＃「(?P=t)」(?:の(?P<dir>右|左|上|下)に|に|は)'
     rf'(?P<kind>{_DECO_KW})］')
 # 挿絵: ［＃<説明>（fig…\.png、横W×縦H）入る］
 IMG_RE = re.compile(
@@ -94,7 +96,8 @@ class Paragraph:
     segments: list[Segment]
     heading_level: int = 0      # 0=本文, 2=大見出し, 3=中見出し, 4=小見出し
     heading_type: str | None = None  # 'normal' | 'dogyo'(同行) | 'mado'(窓)
-    decorations: list = None    # [(対象文字列, CSSクラス, HTMLタグ)] 傍点・傍線・太字等
+    decorations: list = None    # [(対象文字列, CSSクラス, HTMLタグ, 出現番号)] 傍点・傍線等
+                                # 出現番号は地の文における0始まりの何回目か（旧データは3要素=0扱い）
     indent: int = 0             # 字下げ幅（em, 左マージン）
     align: str | None = None    # None | 'right'（地付き・字上げ）
     align_offset: int = 0       # 字上げの N（地からN字上げ, 右マージンem）
@@ -117,7 +120,7 @@ class Paragraph:
         """傍点（sesame_dot）対象の文字列。後方互換のための導出プロパティ。"""
         if not self.decorations:
             return None
-        e = [t for t, cls, _ in self.decorations if cls == 'sesame_dot']
+        e = [d[0] for d in self.decorations if d[1] == 'sesame_dot']
         return e or None
 
 
@@ -126,6 +129,7 @@ class Document:
     title: str
     author: str
     paragraphs: list[Paragraph]
+    subtitle: str = ''   # 副題・原題（冒頭書式の表題と著者の間の行。無ければ空）
     colophon: str = ''   # 底本情報
     license: str = ''    # 著作権者の選択（例 'CC BY 4.0'/'CC0'。空=作者に著作権があり
                           # 明示の許可なく複製・配布はできない、という既定を意味する）
@@ -180,8 +184,10 @@ class Document:
             if p.jizume:
                 d['jizume'] = p.jizume
             if p.decorations:
-                d['deco'] = [{'t': t, 'cls': c, 'tag': g}
-                             for t, c, g in p.decorations]
+                d['deco'] = [
+                    {'t': x[0], 'cls': x[1], 'tag': x[2],
+                     **({'n': x[3]} if len(x) > 3 and x[3] else {})}
+                    for x in p.decorations]
             if p.image:
                 s, w, h, cap = p.image
                 d['image'] = {'src': s, 'w': w, 'h': h, 'cap': cap}
@@ -190,9 +196,12 @@ class Document:
             if p.notes:
                 d['notes'] = p.notes
             paras.append(d)
-        return {'title': self.title, 'author': self.author,
-                'colophon': self.colophon, 'license': self.license,
-                'paragraphs': paras}
+        out = {'title': self.title, 'author': self.author,
+               'colophon': self.colophon, 'license': self.license,
+               'paragraphs': paras}
+        if self.subtitle:
+            out['subtitle'] = self.subtitle
+        return out
 
     def to_json(self, *, ensure_ascii: bool = False, **kwargs) -> str:
         """to_dict() を JSON 文字列に（既定は非ASCIIをそのまま＝実Unicode文字）。"""
@@ -205,7 +214,8 @@ class Document:
         paras = []
         for pd in d['paragraphs']:
             segs = [(s['t'], s.get('r')) for s in pd['seg']]
-            deco = ([(x['t'], x['cls'], x['tag']) for x in pd['deco']]
+            deco = ([(x['t'], x['cls'], x['tag'], x.get('n', 0))
+                     for x in pd['deco']]
                     if pd.get('deco') else None)
             img = pd.get('image')
             image = (img['src'], img['w'], img['h'], img['cap']) if img else None
@@ -218,7 +228,8 @@ class Document:
                 align_offset=pd.get('align_offset', 0),
                 jizume=pd.get('jizume', 0), image=image))
         return cls(title=d['title'], author=d['author'],
-                   paragraphs=paras, colophon=d.get('colophon', ''),
+                   paragraphs=paras, subtitle=d.get('subtitle', ''),
+                   colophon=d.get('colophon', ''),
                    license=d.get('license', ''))
 
 
@@ -236,7 +247,15 @@ def parse(text: str, image_base: str = '',
     """
     text = text.replace('\r\n', '\n')
     lines = text.split('\n')
-    title, author = lines[0].strip(), lines[1].strip()
+    # 冒頭書式: 1行目=表題、2行目=著者、3行目以降=本文（青空の慣例）。
+    # 「表題／副題／著者」の可変行数も存在するが、著者行と本文1行目の間に
+    # 空行が無い作品が多く、副題と本文1行目を機械的に区別できない（同型に
+    # なる）。誤検出で本文を失うより、2行固定＋副題は明示指定に委ねる方が
+    # 安全。ここでは 2行未満の入力で IndexError にならないことだけ担保する
+    # （工房のVLM書き起こし等、不完全入力の経路がある）。
+    title = lines[0].strip() if lines else ''
+    author = lines[1].strip() if len(lines) > 1 else ''
+    subtitle = ''
 
     body = '\n'.join(lines[2:])
     body = HEADER_BLOCK_RE.sub('', body)
@@ -345,7 +364,7 @@ def parse(text: str, image_base: str = '',
                                     unknown_notes=unknown_notes)
             paragraphs.append(p)
 
-    return Document(title=title, author=author,
+    return Document(title=title, author=author, subtitle=subtitle,
                     paragraphs=paragraphs, colophon=colophon)
 
 
@@ -357,8 +376,15 @@ def _make_paragraph(line: str, heading_level: int = 0,
     decorations = []
     for m in DECORATE_RE.finditer(line):
         cls, tag = decorate.deco_class(m.group('kind'), m.group('dir'))
-        decorations.append((m.group('t'), cls, tag))
-    line = DECORATE_RE.sub(r'\g<t>', line)
+        # 装飾対象は「注記の直前の出現」。同じ文字列が段落内に複数回出る場合に
+        # 備え、地の文（ルビ・注記・｜を除いた形）での出現番号を保存する。
+        # 出力側は n 番目の出現に装飾を掛ける（従来は常に最初の出現で、
+        # 別の出現やルビ読みの中に誤適用されていた）。
+        prefix = line[:m.start('t')]
+        prefix = re.sub(r'《[^》]*》', '', prefix)
+        prefix = NOTE_RE.sub('', prefix).replace('｜', '')
+        decorations.append((m.group('t'), cls, tag, prefix.count(m.group('t'))))
+    line = DECORATE_RE.sub(lambda m: m.group('t') + (m.group('rb') or ''), line)
 
     image = None
     mimg = IMG_RE.search(line)

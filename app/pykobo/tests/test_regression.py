@@ -136,3 +136,86 @@ def test_unclosed_heading_block_does_not_swallow_body():
     assert (3, '上の巻') in plains          # 最初の行は見出しとして立つ
     assert (0, '以降の本文です。') in plains  # 残りは本文として排出される
     assert (0, '続きの行。') in plains
+
+
+# ── Medium群の回帰(2026-07-17レビュー) ─────────────────────────────
+
+def test_decoration_applies_to_correct_occurrence():
+    """同じ文字が複数回出るとき、注記の直前の出現に装飾が掛かる。"""
+    from pybunko.formats import to_html
+    d = parser.parse('題\n著\n\n昧爽の空、意味の昧［＃「昧」に傍点］。\n')
+    html = to_html(d)
+    # 装飾対象は2つ目の「昧」（「意味の昧」側）
+    assert html.count('<em class="sesame_dot">昧</em>') == 1
+    head = html.split('<em', 1)[0]
+    assert '昧爽' in head  # 1つ目の昧（昧爽）は素のまま
+
+
+def test_decoration_not_injected_into_ruby_reading():
+    """ルビ読み(<rt>)の中に同じ文字があっても装飾が入らない。"""
+    from pybunko.formats import to_html
+    d = parser.parse('題\n著\n\n味《み》と、み［＃「み」に傍点］。\n')
+    html = to_html(d)
+    assert '<rt>み</rt>' in html            # ルビ読みは無傷
+    assert '<em class="sesame_dot">み</em>' in html
+
+
+def test_decoration_after_ruby_base():
+    """装飾対象とその注記の間にルビが挟まっても失われない。"""
+    d = parser.parse('題\n著\n\n山月記《さんげつき》［＃「山月記」に傍点］\n')
+    deco = d.paragraphs[0].decorations
+    assert deco and deco[0][:3] == ('山月記', 'sesame_dot', 'em')
+    assert d.paragraphs[0].plain == '山月記'  # ルビ親文字は本文に残る
+
+
+def test_parse_single_line_no_indexerror():
+    d = parser.parse('題名だけ')
+    assert d.title == '題名だけ' and d.author == ''
+
+
+def test_document_roundtrip_with_decoration_occurrence():
+    d = parser.parse('題\n著\n\nああ、あ［＃「あ」に傍点］。\n')
+    rt = parser.Document.from_dict(d.to_dict())
+    assert rt.paragraphs[0].decorations[0] == d.paragraphs[0].decorations[0]
+
+
+def test_epub_identifier_is_stable():
+    from pybunko.formats import to_epub
+    import tempfile, os, zipfile, re
+    d = parser.parse('題\n著\n\n本文。\n')
+    ids = []
+    for _ in range(2):
+        with tempfile.NamedTemporaryFile(suffix='.epub', delete=False) as f:
+            path = f.name
+        to_epub(d, path)
+        with zipfile.ZipFile(path) as z:
+            opf = next(n for n in z.namelist() if n.endswith('.opf'))
+            m = re.search(r'aozora-[0-9a-f]+', z.read(opf).decode('utf-8'))
+            ids.append(m.group(0))
+        os.unlink(path)
+    assert ids[0] == ids[1]  # プロセス跨ぎでも同一ID
+
+
+def test_official_bytes_keeps_non_sjis_as_charref():
+    from pybunko.official import to_official_bytes
+    # 第3水準等の実Unicode文字(挘 U+6318=25368)は Shift_JIS に無い。
+    # errors='xmlcharrefreplace' で10進数値文字参照 &#25368; になる
+    # （errors='replace' の '?' 無言欠字ではない）。
+    b = to_official_bytes('挘る話\n著\n\n本文。\n')
+    assert b'&#25368;' in b
+
+
+def test_db_search_escapes_like_wildcards(tmp_path):
+    from pybunko import db
+    dbp = str(tmp_path / 'x.db')
+    import sqlite3
+    con = sqlite3.connect(dbp)
+    con.execute("CREATE TABLE works (work_id TEXT, title TEXT, title_yomi TEXT, "
+                "author TEXT, author_yomi TEXT, row TEXT, card_url TEXT)")
+    con.executemany("INSERT INTO works VALUES (?,?,?,?,?,?,?)", [
+        ('1', '100%の恋', '', '甲', '', '', ''),
+        ('2', '普通の話', '', '乙', '', '', ''),
+    ])
+    con.commit(); con.close()
+    hits = db.search(dbp, '100%')
+    assert [h['title'] for h in hits] == ['100%の恋']  # % がワイルドカードにならない

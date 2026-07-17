@@ -77,6 +77,34 @@ def _attr(classes: list[str], styles: list[str]) -> str:
 _MIDASHI_INC = {2: 100, 3: 10, 4: 1}
 
 
+def _wrap_occurrence(inner: str, esc: str, repl: str, occ: int) -> str:
+    """HTML断片 inner 中の esc の occ 番目(0始まり)の出現を repl に置換する。
+
+    タグの中(<...>)と <rt>…</rt>(ルビ読み)の中は出現として数えない ——
+    従来の「最初の出現を無条件置換」は、装飾対象と同じ文字列が先に出る
+    段落やルビ読みの中に <em> を差し込んでいた。occ が出現数を超える場合は
+    最後の出現に掛ける(数え方のずれで黙って消さない)。"""
+    hits = []
+    pos = 0
+    while True:
+        j = inner.find(esc, pos)
+        if j == -1:
+            break
+        prefix = inner[:j]
+        if prefix.rfind('<') > prefix.rfind('>'):      # タグの中
+            pos = j + 1
+            continue
+        if prefix.rfind('<rt>') > prefix.rfind('</rt>'):  # ルビ読みの中
+            pos = j + 1
+            continue
+        hits.append(j)
+        pos = j + len(esc)
+    if not hits:
+        return inner
+    k = hits[occ] if occ < len(hits) else hits[-1]
+    return inner[:k] + repl + inner[k + len(esc):]
+
+
 def to_html(doc: Document, compat: str | None = None) -> str:
     """本文をHTML断片に（<ruby>タグ使用）。
 
@@ -93,10 +121,12 @@ def to_html(doc: Document, compat: str | None = None) -> str:
             if r else html.escape(t)
             for t, r in p.segments)
         if p.decorations:
-            for t, cls, tag in p.decorations:
+            for x in p.decorations:
+                t, cls, tag = x[0], x[1], x[2]
+                occ = x[3] if len(x) > 3 else 0
                 esc = html.escape(t)
-                inner = inner.replace(
-                    esc, f'<{tag} class="{cls}">{esc}</{tag}>', 1)
+                inner = _wrap_occurrence(
+                    inner, esc, f'<{tag} class="{cls}">{esc}</{tag}>', occ)
         if p.image:
             src, w, h, cap = p.image
             dim = (f' width="{w}"' if w else '') + (f' height="{h}"' if h else '')
@@ -122,7 +152,9 @@ def to_epub(doc: Document, path: str) -> str:
     """EPUB3 ファイルを書き出し、パスを返す（Send to Kindle / Play ブックス対応）"""
     from ebooklib import epub
     book = epub.EpubBook()
-    book.set_identifier(f'aozora-{abs(hash(doc.title + doc.author))}')
+    import hashlib
+    stable = hashlib.md5((doc.title + '\x00' + doc.author).encode()).hexdigest()[:16]
+    book.set_identifier(f'aozora-{stable}')  # hash()はプロセス毎に変わり再配信で別IDになる
     book.set_title(doc.title)
     book.set_language('ja')
     book.add_author(doc.author)
@@ -189,7 +221,9 @@ def to_markdown(doc: Document) -> str:
             continue
         text = ''.join(
             ('{' + t + '|' + r + '}') if r else t for t, r in p.segments)
-        for target, cls, tag in (p.decorations or []):
+        for x in (p.decorations or []):
+            target, cls, tag = x[0], x[1], x[2]
+            occ = x[3] if len(x) > 3 else 0
             if cls == 'futoji':
                 repl = f'**{target}**'
             elif cls == 'shatai':
@@ -198,7 +232,17 @@ def to_markdown(doc: Document) -> str:
                 repl = f'[{target}]{{.{cls}}}'
             else:               # sub/sup 等は washi の html:True で通す
                 repl = f'<{tag} class="{cls}">{target}</{tag}>'
-            text = text.replace(target, repl, 1)
+            # occ 番目の出現に適用（超過時は最後の出現。ルビ {本文|読み} の
+            # 読み部は数えないのが理想だが、markdown 変換では読みに同じ
+            # 文字列が現れる形が稀なため素朴な走査にとどめる）
+            idx, k = -1, -1
+            for _ in range(occ + 1):
+                nxt = text.find(target, k + 1)
+                if nxt == -1:
+                    break
+                idx, k = nxt, nxt
+            if idx != -1:
+                text = text[:idx] + repl + text[idx + len(target):]
         if p.heading_level:            # 大=2→#, 中=3→##, 小=4→###
             text = '#' * (p.heading_level - 1) + ' ' + text
         lines += [text, '']
@@ -224,5 +268,8 @@ def to_pdf(doc: Document, path: str, vertical: bool = True, **kwargs) -> str:
                                      encoding='utf-8') as f:
         f.write(html_str)
         tmp = Path(f.name)
-    pywashi.to_pdf(tmp, Path(path))
+    try:
+        pywashi.to_pdf(tmp, Path(path))
+    finally:
+        tmp.unlink(missing_ok=True)  # 本文全文入りの一時HTMLを残さない
     return path

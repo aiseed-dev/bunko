@@ -25,6 +25,7 @@ from __future__ import annotations
 import difflib
 import os
 import re
+import time
 import urllib.request
 from pathlib import Path
 
@@ -677,6 +678,14 @@ def main(page: ft.Page):
         出力PNGだけが2倍(1588×2246)になる（実測で確認）。
         """
         import subprocess, tempfile
+        import pywashi
+        # pywashi と同じ探索（chromium 等にもフォールバック）。google-chrome
+        # 決め打ちだと、PDF出力は成功するのにプレビューだけ FileNotFoundError
+        # で失敗する不整合があった。
+        chrome = pywashi._find_chrome()
+        if not chrome:
+            raise RuntimeError(
+                'プレビューには Chrome/Chromium が必要です（google-chrome または chromium）')
         opts, (w, h) = _washi_opts()
         html = _render_washi_html(text, opts)
         with tempfile.TemporaryDirectory() as td:
@@ -684,7 +693,7 @@ def main(page: ft.Page):
             png_p = Path(td) / 'p.png'
             html_p.write_text(html, encoding='utf-8')
             subprocess.run(
-                ['google-chrome', '--headless', '--disable-gpu',
+                [chrome, '--headless', '--disable-gpu',
                  '--force-device-scale-factor=2',
                  f'--window-size={w},{h}', f'--screenshot={png_p}',
                  html_p.resolve().as_uri()],
@@ -751,10 +760,22 @@ def main(page: ft.Page):
                     '() => window.print());</script>\n</body>')
                 if page.web:
                     # Web版: サーバ側でブラウザは開けないので、assets経由で
-                    # 利用者のブラウザに新しいタブとして開かせる
-                    out = Path(__file__).parent / 'assets' / 'print_preview.html'
-                    out.write_text(html, encoding='utf-8')
-                    page.launch_url('/print_preview.html')
+                    # 利用者のブラウザに新しいタブとして開かせる。
+                    # 共有の固定名だと複数セッションで上書き競合し、他人の原稿を
+                    # /print_preview.html で取得できてしまう。セッション毎の
+                    # 推測困難な名前にし、古い出力は掃除する。
+                    import secrets
+                    pv_dir = Path(__file__).parent / 'assets' / '_print'
+                    pv_dir.mkdir(exist_ok=True)
+                    for old in pv_dir.glob('*.html'):
+                        try:
+                            if old.stat().st_mtime < time.time() - 3600:
+                                old.unlink()
+                        except OSError:
+                            pass
+                    name = f'{secrets.token_urlsafe(16)}.html'
+                    (pv_dir / name).write_text(html, encoding='utf-8')
+                    page.launch_url(f'/_print/{name}')
                 else:
                     out = Path(tempfile.gettempdir()) / 'pykobo_print.html'
                     out.write_text(html, encoding='utf-8')

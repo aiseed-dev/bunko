@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 MIRROR = 'https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/'
+_TIMEOUT = 30  # ミラー取得のタイムアウト秒（応答停滞での無限ハングを防ぐ）
 CATALOG_URL = MIRROR + 'index_pages/list_person_all_extended_utf8.zip'
 _AOZORA_URL_RE = re.compile(r'https?://www\.aozora\.gr\.jp/(cards/.+)')
 
@@ -48,7 +49,9 @@ class Work:
         data = _fetch(self.mirror_url, cache)
         if data[:2] == b'PK':
             with zipfile.ZipFile(io.BytesIO(data)) as zf:
-                name = next(n for n in zf.namelist() if n.endswith('.txt'))
+                name = next((n for n in zf.namelist() if n.endswith('.txt')), None)
+                if name is None:
+                    raise ValueError(f'zipに.txtが無い: {self.mirror_url}')
                 data = zf.read(name)
         return data.decode('shift_jis', errors='replace')
 
@@ -97,7 +100,10 @@ class Library:
     def _load(self) -> list[Work]:
         raw = _fetch(CATALOG_URL, self.cache_dir / 'catalog.zip')
         with zipfile.ZipFile(io.BytesIO(raw)) as zf:
-            text = zf.read(zf.namelist()[0]).decode('utf-8-sig')
+            names = zf.namelist()
+            if not names:
+                raise ValueError(f'空のzip: {CATALOG_URL}')
+            text = zf.read(names[0]).decode('utf-8-sig')
         works = []
         for row in csv.DictReader(io.StringIO(text)):
             if row['役割フラグ'] != '著者' or not row['テキストファイルURL']:
@@ -234,6 +240,6 @@ def _fetch(url: str, cache: Path) -> bytes:
     if cache.exists():
         return cache.read_bytes()
     cache.parent.mkdir(parents=True, exist_ok=True)
-    data = urllib.request.urlopen(url).read()
+    data = urllib.request.urlopen(url, timeout=_TIMEOUT).read()
     cache.write_bytes(data)
     return data
