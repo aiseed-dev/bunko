@@ -21,15 +21,12 @@ xlsx は zip+XML なので、依存を足さず zipfile と xml だけで読み�
 """
 from __future__ import annotations
 
-import io
 import json
 import re
 import sys
-import zipfile
-from xml.sax.saxutils import escape
 
-_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
-_R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+# 汎用の xlsx 読み書きは pybunko.xlsx（ゼロ依存・他のエクスポートと共通）に集約。
+from pybunko.xlsx import read_sheet, write_workbook
 
 # フィールドのキー ↔ 表の日本語見出し。読み込みは英語キー・日本語見出しの
 # どちらの列名でも受ける（正規化して突き合わせる）。
@@ -71,178 +68,6 @@ _TEMPLATE_FIELDS = [
     {"name": "your-message", "label": "お問い合わせ内容", "type": "textarea",
      "required": True},
 ]
-
-
-# ── 汎用 xlsx リーダー（他のエクスポートでも再利用できる最小実装）─────────
-
-def _local(tag: str) -> str:
-    return tag.rsplit("}", 1)[-1]
-
-
-def _col_index(ref: str) -> int:
-    """セル参照 'AB12' → 0始まりの列番号。"""
-    letters = re.match(r"[A-Z]+", ref)
-    n = 0
-    for ch in letters.group(0):
-        n = n * 26 + (ord(ch) - 64)
-    return n - 1
-
-
-def _shared_strings(zf: zipfile.ZipFile) -> list[str]:
-    import xml.etree.ElementTree as ET
-    try:
-        root = ET.fromstring(zf.read("xl/sharedStrings.xml"))
-    except KeyError:
-        return []
-    out = []
-    for si in root:
-        out.append("".join(t.text or "" for t in si.iter() if _local(t.tag) == "t"))
-    return out
-
-
-def _sheet_paths(zf: zipfile.ZipFile) -> "dict[str, str]":
-    """シート名 → worksheet の zip 内パス。"""
-    import xml.etree.ElementTree as ET
-    wb = ET.fromstring(zf.read("xl/workbook.xml"))
-    rels = ET.fromstring(zf.read("xl/_rels/workbook.xml.rels"))
-    rid_to_target = {r.get("Id"): r.get("Target") for r in rels}
-    out = {}
-    for s in wb.iter():
-        if _local(s.tag) == "sheet":
-            rid = s.get(f"{{{_R_NS}}}id")
-            target = rid_to_target.get(rid, "")
-            if not target.startswith("/"):
-                target = "xl/" + target.lstrip("/")
-            out[s.get("name")] = target.lstrip("/")
-    return out
-
-
-def read_sheet(data: bytes, sheet: str | None = None) -> "list[list[str]]":
-    """xlsx の1シートを行×列の文字列テーブルとして読む。"""
-    import xml.etree.ElementTree as ET
-    with zipfile.ZipFile(io.BytesIO(data)) as zf:
-        strings = _shared_strings(zf)
-        paths = _sheet_paths(zf)
-        if sheet is None:
-            path = next(iter(paths.values()))
-        elif sheet in paths:
-            path = paths[sheet]
-        else:
-            return []
-        root = ET.fromstring(zf.read(path))
-    rows = []
-    for row in root.iter():
-        if _local(row.tag) != "row":
-            continue
-        cells = {}
-        for c in row:
-            if _local(c.tag) != "c":
-                continue
-            ref = c.get("r") or "A1"
-            ctype = c.get("t")
-            text = ""
-            if ctype == "inlineStr":
-                text = "".join(t.text or "" for t in c.iter()
-                               if _local(t.tag) == "t")
-            else:
-                v = next((e for e in c if _local(e.tag) == "v"), None)
-                if v is not None and v.text is not None:
-                    text = strings[int(v.text)] if ctype == "s" else v.text
-            cells[_col_index(ref)] = text
-        width = max(cells) + 1 if cells else 0
-        rows.append([cells.get(i, "") for i in range(width)])
-    return rows
-
-
-# ── 汎用 xlsx ライター（inlineStr のみ・sharedStrings 不要の最小実装）──────
-
-_CONTENT_TYPES = (
-    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
-    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
-    '<Default Extension="xml" ContentType="application/xml"/>'
-    '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
-    '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
-    "{sheets}</Types>"
-)
-_ROOT_RELS = (
-    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
-    "</Relationships>"
-)
-_STYLES = (
-    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-    f'<styleSheet xmlns="{_NS}">'
-    '<fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts>'
-    '<fills count="1"><fill><patternFill patternType="none"/></fill></fills>'
-    '<borders count="1"><border/></borders>'
-    '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
-    '<cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs>'
-    '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'
-    "</styleSheet>"
-)
-
-
-def _col_letter(i: int) -> str:
-    s = ""
-    i += 1
-    while i:
-        i, r = divmod(i - 1, 26)
-        s = chr(65 + r) + s
-    return s
-
-
-def _sheet_xml(rows: "list[list]") -> str:
-    out = [f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="{_NS}"><sheetData>']
-    for ri, row in enumerate(rows, 1):
-        out.append(f'<row r="{ri}">')
-        for ci, val in enumerate(row):
-            if val is None or val == "":
-                continue
-            ref = f"{_col_letter(ci)}{ri}"
-            txt = escape(str(val))
-            out.append(f'<c r="{ref}" t="inlineStr"><is><t xml:space="preserve">{txt}</t></is></c>')
-        out.append("</row>")
-    out.append("</sheetData></worksheet>")
-    return "".join(out)
-
-
-def write_workbook(sheets: "dict[str, list[list]]") -> bytes:
-    """{シート名: 行のリスト} → xlsx バイト列。"""
-    names = list(sheets)
-    ct_over = "".join(
-        f'<Override PartName="/xl/worksheets/sheet{i}.xml" '
-        'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
-        for i in range(1, len(names) + 1))
-    wb_sheets = "".join(
-        f'<sheet name="{escape(n)}" sheetId="{i}" r:id="rId{i}"/>'
-        for i, n in enumerate(names, 1))
-    workbook = (
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        f'<workbook xmlns="{_NS}" xmlns:r="{_R_NS}"><sheets>{wb_sheets}</sheets></workbook>')
-    rel_items = "".join(
-        f'<Relationship Id="rId{i}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet{i}.xml"/>'
-        for i in range(1, len(names) + 1))
-    styles_rid = len(names) + 1
-    rel_items += (f'<Relationship Id="rId{styles_rid}" '
-                  'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" '
-                  'Target="styles.xml"/>')
-    wb_rels = (
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-        f"{rel_items}</Relationships>")
-
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("[Content_Types].xml", _CONTENT_TYPES.format(sheets=ct_over))
-        zf.writestr("_rels/.rels", _ROOT_RELS)
-        zf.writestr("xl/workbook.xml", workbook)
-        zf.writestr("xl/_rels/workbook.xml.rels", wb_rels)
-        zf.writestr("xl/styles.xml", _STYLES)
-        for i, name in enumerate(names, 1):
-            zf.writestr(f"xl/worksheets/sheet{i}.xml", _sheet_xml(sheets[name]))
-    return buf.getvalue()
 
 
 # ── フォーム定義 ⇄ 表 の対応付け ─────────────────────────────────────────

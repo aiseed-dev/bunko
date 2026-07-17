@@ -347,6 +347,48 @@ def main(page: ft.Page):
                            '── 提出時は作品ID確定後に公式のファイル名へリネーム')
         page.update()
 
+    async def ed_insert_table(e):
+        """表を挿入 —— 表計算(xlsx)を選び、AsciiDoc表としてカーソル位置に。
+
+        表は表計算で作る方が速い。OnlyOffice/Excel/LibreOffice で作った
+        xlsx の1シート目を AsciiDoc の表（|=== …）に変換して差し込む。
+        AsciiDoc記法は pywashi が <table> に組む。青空注記に表は無いので
+        AsciiDoc モード専用。
+        """
+        if ed_state['dialect'] != 'asciidoc':
+            ed_status.value = ('表の挿入は AsciiDoc モード専用です'
+                               '（ファイル→記法→AsciiDoc に切り替えてください）')
+            page.update()
+            return
+        files = await ed_picker.pick_files(
+            dialog_title='表にする xlsx を選ぶ', with_data=True,
+            file_type=ft.FilePickerFileType.CUSTOM, allowed_extensions=['xlsx'])
+        if not files:
+            return
+        f = files[0]
+        try:
+            from pybunko import xlsx
+            data = f.bytes if f.bytes is not None else Path(f.path).read_bytes()
+            rows = xlsx.read_sheet(data)
+            table = xlsx.to_asciidoc_table(rows)
+            if not table.strip():
+                ed_status.value = '表が空でした（1シート目に内容がありません）'
+                page.update()
+                return
+        except Exception as ex:
+            ed_status.value = f'xlsx を表に変換できませんでした: {ex}'
+            page.update()
+            return
+        v = _ed_text_get()
+        a = ed_sel['start']
+        a = max(0, min(a, len(v)))
+        # 前後に空行を確保（AsciiDoc の表は前段落と地続きだと崩れる）
+        head = '' if a == 0 or v[max(0, a - 2):a] == '\n\n' else '\n'
+        ins = f'{head}{table}\n'
+        _ed_apply(v[:a] + ins + v[a:], a + len(ins), a + len(ins))
+        ed_status.value = f'✓ {len(xlsx._trim(rows))}行の表を挿入しました（AsciiDoc）'
+        page.update()
+
     # ── Undo / Redo（Ctrl+Z / Ctrl+Y。履歴は編集操作と打鍵の節目で積む） ──
     ed_undo, ed_redo = [], []
 
@@ -1260,6 +1302,7 @@ def main(page: ft.Page):
                 _mi('改ページ', ed_insert('kaipage')),
                 ft.Divider(height=1, color=RULE),
                 _mi('挿絵（画像）…', ed_insert_image),
+                _mi('表（xlsxから）…', ed_insert_table),
             ]),
             _menu('レイアウト', [
                 mi_mode['normal'], mi_mode['genko'],

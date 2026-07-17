@@ -2,3 +2,4 @@ print_out/
 app/pykobo/assets/
 .venv/
 export_out/
+__pycache__/
