@@ -10,10 +10,20 @@ from dataclasses import dataclass
 
 from . import accent, decorate, gaiji
 
-# ルビ: ｜複合語《よみ》 または 漢字連続《よみ》
+# ルビ: ｜複合語《よみ》 または 直前の「同種文字の連なり」《よみ》。
+# ｜なしのルビは直前の同じ種類の文字の連続に掛かる（青空文庫注記仕様）。
+# 種類は 漢字／カタカナ／ひらがな／欧文（半角・全角の英数）—— 以前は漢字
+# 系のみで、「ワグネル《わぐねる》」「Lichtenberg《リヒテンベルヒ》」
+# （吾輩は猫である に実在）が解釈されず《…》が本文に残った。
 RUBY_RE = re.compile(
     r'(?:｜(?P<base1>[^《｜]+)'
-    r'|(?P<base2>[\u4E00-\u9FFF\u3005-\u3007\uF900-\uFAFF々〆ヵヶ]+))'
+    r'|(?P<base2>'
+    r'[\u4E00-\u9FFF\u3005-\u3007\uF900-\uFAFF々〆ヵヶ]+'  # 漢字・々〆ヵヶ
+    r'|[ァ-ヶーヽヾ]+'    # カタカナ（ヽヾ含む）
+    r'|[ぁ-ゖゝゞ]+'      # ひらがな（ゝゞ含む）
+    r"|[A-Za-z0-9][A-Za-z0-9 '.,-]*"  # 半角欧文（語間空白可）
+    r'|[Ａ-Ｚａ-ｚ０-９]+'             # 全角英数
+    r'))'
     r'《(?P<ruby>[^》]+)》')
 # 装飾: ○○［＃「○○」に傍点／に二重傍線／は太字／の左に傍点 …］
 _DECO_KW = '|'.join(decorate.KEYWORDS)
@@ -318,6 +328,22 @@ def parse(text: str, image_base: str = '',
                             unknown_notes=unknown_notes)
         _set_layout(p, layout)
         paragraphs.append(p)
+
+    if pending is not None:
+        # 「見出し終わり」が来ないまま本文が尽きた（底本の注記逸脱）。
+        # 以前はここで pending を排出せず、開始行以降の全行が黙って消えた。
+        # 最初の行だけを見出しとして立て、飲み込んでいた残りは通常の本文
+        # として排出する（どこまでが見出しかはもう分からないため）。
+        parts = [s for s in pending['parts'] if s.strip()]
+        for i, part in enumerate(parts):
+            if i == 0:
+                p = _make_paragraph(part, pending['level'], pending['type'],
+                                    image_base, unknown_notes)
+                _set_layout(p, pending['layout'])
+            else:
+                p = _make_paragraph(part, image_base=image_base,
+                                    unknown_notes=unknown_notes)
+            paragraphs.append(p)
 
     return Document(title=title, author=author,
                     paragraphs=paragraphs, colophon=colophon)

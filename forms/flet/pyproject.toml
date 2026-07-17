@@ -1,0 +1,20 @@
+[project]
+name = "formrescue-flet"
+version = "0.1.0"
+description = "Local pull-based inbox admin app for decoupled WordPress contact form data (Flet)"
+requires-python = ">=3.11"
+dependencies = [
+    "flet[all]>=0.86,<0.87",
+    "httpx>=0.27",
+    # QR/camera exception (see README): flet-camera shows the preview and
+    # captures a still frame; pyzbar+Pillow decode the QR from that frame.
+    # All three have prebuilt wheels on pypi.flet.dev for Android/iOS.
+    "flet-camera==0.86.0",
+    "pyzbar>=0.1.9",
+    "Pillow>=10.4",
+]
+
+[tool.flet]
+product = "FormRescue"
+org = "dev.aiseed"
+company = "aiseed"

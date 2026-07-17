@@ -1,0 +1,27 @@
+= お問い合わせ
+
+ご質問・ご依頼は、以下のフォームから、お願いします。 +
+担当より、折り返し、ご連絡します。
+
+// ↓ フォーム定義。[.form] の直後(空行まで)を、そのまま JSON として読み、
+//   この位置に、対話的フォームを描く。運用する人は、この JSON だけを触る
+//   (フォームビルダー form-builder.html が、この JSON を吐く)。
+[.form]
+{
+  "action": "https://<WORKER>/submit",
+  "sitekey": "0xSITEKEY",
+  "confirm": true,
+  "fields": [
+    {"name":"your-name",   "label":"お名前",               "type":"text",     "required":true, "placeholder":"例)山田 太郎"},
+    {"name":"company",     "label":"会社名",               "type":"text",     "required":true},
+    {"name":"your-email",  "label":"メールアドレス",        "type":"email",    "required":true},
+    {"name":"your-email2", "label":"メールアドレス(確認)", "type":"email",    "required":true, "match":"your-email"},
+    {"name":"tel",         "label":"電話番号",             "type":"tel",      "format":"tel"},
+    {"name":"category",    "label":"お問い合わせ種別",      "type":"select",   "required":true, "options":["サービスについて","お見積り","その他"]},
+    {"name":"contact-pref","label":"ご希望の連絡方法",      "type":"radio",    "options":["メール","電話"], "default":"メール"},
+    {"name":"interest",    "label":"興味のある項目",        "type":"checkbox", "options":["導入相談","資料請求","デモ希望"]},
+    {"name":"your-message","label":"お問い合わせ内容",      "type":"textarea", "required":true}
+  ]
+}
+
+なお、お預かりした個人情報は、お問い合わせへの回答のみに使用します。

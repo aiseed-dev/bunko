@@ -101,3 +101,38 @@ def test_keep_blank_lines():
     plains = [p.plain for p in parse(src, keep_blank_lines=True).paragraphs]
     i, j = plains.index("一行目"), plains.index("二行目")
     assert plains[i + 1:j] == ["", ""]
+
+
+# ── パーサ回帰: レビュー(2026-07-17)で見つかった2件 ─────────────────────
+
+from pybunko import parser
+
+
+def test_katakana_and_latin_ruby():
+    """｜なしルビはカタカナ・欧文の連なりにも掛かる（吾輩は猫であるに実在）。"""
+    d = parser.parse(
+        '題\n著\n\nワグネル《わぐねる》先生とLichtenberg《リヒテンベルヒ》の話。\n')
+    segs = d.paragraphs[0].segments
+    assert ('ワグネル', 'わぐねる') in segs
+    assert ('Lichtenberg', 'リヒテンベルヒ') in segs
+    assert all('《' not in t for t, _ in segs)
+
+
+def test_hiragana_and_zenkaku_latin_ruby():
+    d = parser.parse('題\n著\n\nそれはｖｉｏｌｉｎ《ヴァイオリン》です。\n')
+    assert ('ｖｉｏｌｉｎ', 'ヴァイオリン') in d.paragraphs[0].segments
+
+
+def test_kanji_ruby_unchanged():
+    """従来の漢字ルビは従来どおり（直前の漢字連続だけに掛かる）。"""
+    d = parser.parse('題\n著\n\nいまは邪智暴虐《じゃちぼうぎゃく》の王だ。\n')
+    assert ('邪智暴虐', 'じゃちぼうぎゃく') in d.paragraphs[0].segments
+
+
+def test_unclosed_heading_block_does_not_swallow_body():
+    """「見出し終わり」の無い複数行見出しでも本文が消えない（以前は全喪失）。"""
+    d = parser.parse('題\n著\n\n［＃中見出し］\n上の巻\n以降の本文です。\n続きの行。\n')
+    plains = [(p.heading_level, p.plain) for p in d.paragraphs]
+    assert (3, '上の巻') in plains          # 最初の行は見出しとして立つ
+    assert (0, '以降の本文です。') in plains  # 残りは本文として排出される
+    assert (0, '続きの行。') in plains

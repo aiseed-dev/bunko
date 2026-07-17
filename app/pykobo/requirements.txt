@@ -9,7 +9,7 @@
 #
 # GUIが実行時に使うものだけを列挙する（CLI専用のfonttools/pyarrow/
 # edge-tts等は含めない）。
-flet==0.85.3
-pywashi>=0.9.5
-pyasciidoc>=0.3
+flet==0.86.0
+pywashi>=0.10.1
+pyasciidoc>=0.4.2
 ebooklib>=0.18

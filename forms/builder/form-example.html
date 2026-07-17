@@ -1,0 +1,47 @@
+<!-- ============================================================
+     form-example.html — form-render.js の動作確認
+
+     スキーマ(下の <script type="application/json">)を編集するだけで、
+     フォームが変わる。仕組み(form-render.js)は、触らない。
+
+     本番では:
+       - "action"  を FormRescue の Worker の /submit URL に
+       - "sitekey" を Cloudflare Turnstile の site key に
+     このサンプルは sitekey を空にしているので、Turnstile なしで、
+     入力→確認→送信まで、そのまま試せる(送信先は <WORKER> のまま=失敗表示)。
+     ============================================================ -->
+<meta charset="utf-8">
+<link rel="stylesheet" href="form.css">
+
+<h1>お問い合わせ</h1>
+<p>ご質問・ご依頼は、以下のフォームから、お願いします。</p>
+
+<div id="fr-form"></div>
+
+<script id="fr-schema" type="application/json">
+{
+  "action": "https://<WORKER>/submit",
+  "sitekey": "",
+  "confirm": true,
+  "fields": [
+    {"name":"your-name",   "label":"お名前",               "type":"text",     "required":true, "placeholder":"例)山田 太郎"},
+    {"name":"kana",        "label":"フリガナ",             "type":"text",     "required":true, "format":"katakana", "help":"全角カタカナで、ご入力ください", "placeholder":"例)ヤマダ タロウ"},
+    {"name":"company",     "label":"会社名",               "type":"text",     "required":true},
+    {"name":"postal",      "label":"郵便番号",             "type":"text",     "format":"postal", "help":"半角数字、ハイフンあり(例:123-4567)", "placeholder":"123-4567"},
+    {"name":"your-email",  "label":"メールアドレス",        "type":"email",    "required":true, "placeholder":"例)sample@example.com"},
+    {"name":"your-email2", "label":"メールアドレス(確認)", "type":"email",    "required":true, "match":"your-email", "help":"確認のため、もう一度、ご入力ください"},
+    {"name":"tel",         "label":"電話番号",             "type":"tel",       "format":"tel", "help":"半角数字、ハイフン可", "placeholder":"例)090-0000-0000"},
+    {"name":"category",    "label":"お問い合わせ種別",      "type":"select",   "required":true, "options":["サービスについて","お見積り","その他"]},
+    {"name":"contact-pref","label":"ご希望の連絡方法",      "type":"radio",     "options":["メール","電話"], "default":"メール", "help":"初期値は「メール」"},
+    {"name":"interest",    "label":"興味のある項目",        "type":"checkbox",  "options":["導入相談","資料請求","デモ希望"]},
+    {"name":"your-message","label":"お問い合わせ内容",      "type":"textarea", "required":true, "placeholder":"お問い合わせ内容を、ご記入ください"}
+  ]
+}
+</script>
+
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<script src="form-render.js"></script>
+<script>
+  var schema = JSON.parse(document.getElementById('fr-schema').textContent);
+  FormRescue.render(document.getElementById('fr-form'), schema);
+</script>

@@ -436,7 +436,9 @@ def main(page: ft.Page):
             return
         k = (e.key or '').upper()
         if k == 'S':
-            ed_save(None)
+            # ed_save は async。同期ハンドラから素で呼ぶとコルーチンを
+            # 作るだけで実行されない（Ctrl+S が黙って無反応だった）。
+            page.run_task(ed_save, None)
         elif k == 'Z':
             _ed_do_undo()
         elif k == 'Y':
@@ -838,6 +840,10 @@ def main(page: ft.Page):
         ed_report.controls = rows
         ed_status.value = '変換点検が終わりました（今の文書）'
         page.update()
+
+    # Claude校正のクライアント（キーは環境変数 ANTHROPIC_API_KEY、生成は軽量）。
+    # 旧タブ群の削除時に初期化ごと消えていて、メニューが必ず NameError だった。
+    _claude = ClaudeClient()
 
     def ed_tool_claude(e):
         """Claude校正 —— 今の文書の意味レベルの疑いを下部に出す。"""

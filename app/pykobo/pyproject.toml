@@ -23,10 +23,10 @@ epub = ["ebooklib>=0.18"]
 # 縦書き・原稿用紙・PDF組版は aiseed-dev/pywashi に委譲（PyPI名=pywashi。
 # CLI/ブランド名は washi のまま ── "washi-md"は"md"がmarkdownの略語で
 # 冗長だったためpywashiに改称、PyPI上の"washi"は別プロジェクトのため不採用）
-washi = ["pywashi>=0.9.5"]
+washi = ["pywashi>=0.10.1"]
 # 執筆をAsciiDocでも(青空注記の代わりに)行う場合。pywashiのformat="asciidoc"
-# （要pywashi>=0.9.5）が内部でpyasciidocに委譲する
-asciidoc = ["pyasciidoc>=0.3", "pywashi>=0.9.5"]
+# （要pywashi>=0.10.1）が内部でpyasciidocに委譲する
+asciidoc = ["pyasciidoc>=0.4.2", "pywashi>=0.10.1"]
 # 全作品コーパスの列指向エクスポート（研究・NLP・RAG向け）
 parquet = ["pyarrow>=14"]
 # 外字グリフのサブセット埋め込み（official.to_official_html(gaiji='font', embed_font=True)）
