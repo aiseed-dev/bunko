@@ -2,8 +2,9 @@
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
-# 注意: このパッケージは個別にはPyPIへ登録しない（ユーザー決定 2026-07-11）。
-# ローカルの編集インストール（pip install -e '.[epub]'）専用。
+# 注意: このパッケージはPyPIへ登録しない（ユーザー決定 2026-07-11）。
+# 利用は編集インストール（pip install -e '.[epub]'）か git 指定
+# （pybunko @ git+https://github.com/aiseed-dev/bunko.git）。
 [project]
 name = "pybunko"
 version = "0.1.0"

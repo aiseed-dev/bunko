@@ -1,0 +1,2 @@
+[console_scripts]
+pybunko = pybunko.__main__:main

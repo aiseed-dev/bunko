@@ -108,7 +108,7 @@ def author_index(works) -> list[dict]:
 
 
 def to_parquet(rows: list[dict], path: str) -> str:
-    """行のリストを Parquet ファイルに書き出す（要 `pip install -e 'app/pykobo[parquet]'`）。"""
+    """行のリストを Parquet ファイルに書き出す（要 `pip install -e '.[parquet]'`）。"""
     import pyarrow as pa
     import pyarrow.parquet as pq
     table = pa.Table.from_pylist(rows)

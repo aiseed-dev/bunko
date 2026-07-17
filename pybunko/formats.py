@@ -251,7 +251,7 @@ def to_markdown(doc: Document) -> str:
 
 def to_washi_html(doc: Document, vertical: bool = True,
                   genko: bool = False, theme: str = 'default', **kwargs) -> str:
-    """washi(pywashi)で縦書き等の組版HTMLを返す（要 `pip install -e 'app/pykobo[washi]'`）。"""
+    """washi(pywashi)で縦書き等の組版HTMLを返す（要 `pip install -e '.[washi]'`）。"""
     import pywashi
     return pywashi.render(to_markdown(doc), title=doc.title, author=doc.author,
                           vertical=vertical, genko=genko, theme=theme, **kwargs)

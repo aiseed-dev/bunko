@@ -106,7 +106,7 @@ def parse_pdf(pdf_bytes: bytes) -> dict[str, dict]:
 def main() -> int:
     out_path = Path(sys.argv[1]) if len(sys.argv) > 1 else (
         Path(__file__).parent.parent
-        / 'app/pykobo/pybunko/data/gaiji_jisho.json')
+        / 'pybunko/data/gaiji_jisho.json')
     table: dict[str, dict] = {}
     for page in PAGES:
         raw = urllib.request.urlopen(f'{MIRROR}{page}.html').read()

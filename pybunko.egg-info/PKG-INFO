@@ -1,3 +1,28 @@
+Metadata-Version: 2.4
+Name: pybunko
+Version: 0.1.0
+Summary: 文庫（bunko）のPython側 ── 青空文庫の正本をUnicode構造化データに変換し、JSON/SQLite/EPUB/公式XHTML/フォント資産を生む
+License: AGPL-3.0-or-later
+Keywords: aozora,aozorabunko,bunko,japanese,ebook,epub
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Provides-Extra: epub
+Requires-Dist: ebooklib>=0.18; extra == "epub"
+Provides-Extra: washi
+Requires-Dist: pywashi>=0.10.1; extra == "washi"
+Provides-Extra: asciidoc
+Requires-Dist: pyasciidoc>=0.4.2; extra == "asciidoc"
+Requires-Dist: pywashi>=0.10.1; extra == "asciidoc"
+Provides-Extra: parquet
+Requires-Dist: pyarrow>=14; extra == "parquet"
+Provides-Extra: font
+Requires-Dist: fonttools>=4.40; extra == "font"
+Requires-Dist: brotli; extra == "font"
+Provides-Extra: audio
+Requires-Dist: edge-tts>=6; extra == "audio"
+Dynamic: license-file
+
 # 文庫（bunko） — dev.aiseed.bunko
 
 青空文庫の正本（注記付きテキスト）を**構造化Unicodeデータに変換する

@@ -40,7 +40,7 @@ for lead in list(range(0x81, 0xA0)) + list(range(0xE0, 0xFD)):
 print(f"cp932.bin: {len(tbl)} bytes / 2byte文字 {n2}")
 
 # 2) 外字表 -----------------------------------------------------------
-src = ROOT / "app" / "pykobo" / "pybunko" / "data" / "jis2ucs.json"
+src = ROOT / "pybunko" / "data" / "jis2ucs.json"
 shutil.copy(src, ASSETS / "jis2ucs.json")
 print("jis2ucs.json:", (ASSETS/"jis2ucs.json").stat().st_size, "bytes")
 

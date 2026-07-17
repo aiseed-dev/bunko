@@ -2,6 +2,12 @@
 
 作成: 2026-07-11。この文書が全体設計の正本（置き場: **bunko/docs/**）。使い方の詳細は [MANUAL.md](MANUAL.md)。
 
+> **改定（2026-07-18）: エディタ（AISeed工房→pykobo）と FormRescue（→forms）を独立リポジトリに分離。**
+> bunko は青空文庫そのもの（pybunko＋データ資産＋docs）に純化し、運用を担う。
+> エコシステム: pykobo=エディタ（pywashi/pyasciidoc/pybunkoを関連コンポーネント
+> として使う）／forms=webフォームの道具（cf-publishが関連コンポーネント）／
+> 文庫の問い合わせは aiseed-migration-kit のテナント（サンプル）として実装する。
+>
 > **改定（2026-07-17）: Flutter 読者アプリ（app/bunko）を廃止。**
 > Webでの読書は青空文庫本体があるため、読者向けの独自アプリは持たない。
 > 書架・目次のような一覧は静的サイトで足りる（tools/examples/ に試作）。
@@ -13,10 +19,8 @@
 
 ```
 bunko/
-├── app/pykobo/       # AISeed工房 ── Flet 工作員アプリ
-│   ├── pybunko/      #   Python側の全コード（中核＋official＋fonts・138テスト）
-│   └── tests/        #   ※PyPIには個別登録しない（ローカル編集インストール専用）
-├── forms/            # FormRescue ── フォーム受信箱（Flet管理アプリ・ビルダー）
+├── pybunko/          # Pythonライブラリ（中核＋official＋fonts＋xlsx）
+├── tests/            # 153テスト（完全オフライン）※PyPI未登録・editable/git指定で利用
 ├── assets/           # データ資産（aozora.db・IPAex明朝・jis2ucs.json・cp932.bin）
 ├── tools/            # build_assets.py・build_gaiji_table.py・examples/
 └── docs/             # この設計書・マニュアル・LICENSING（正本）

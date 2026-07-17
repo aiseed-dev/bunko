@@ -33,10 +33,10 @@ Shift_JIS 注記付きテキスト（青空文庫の正本）
 ## 2. インストール
 
 ```bash
-pip install -e 'app/pykobo'        # ローカル編集インストール（PyPI個別登録はしない）
-pip install -e 'app/pykobo[epub]'  # EPUB出力も使う
-pip install -e 'app/pykobo[parquet]'   # Parquetコーパス出力も使う
-pip install -e 'app/pykobo[washi]'     # 縦書き・PDF組版（washi-md委譲）
+pip install -e 'pykobo（独立リポジトリ）'        # ローカル編集インストール（PyPI個別登録はしない）
+pip install -e 'pykobo（独立リポジトリ）[epub]'  # EPUB出力も使う
+pip install -e 'pykobo（独立リポジトリ）[parquet]'   # Parquetコーパス出力も使う
+pip install -e 'pykobo（独立リポジトリ）[washi]'     # 縦書き・PDF組版（washi-md委譲）
 ```
 
 Python 3.10+。本体はゼロ依存、重い機能だけオプション。
@@ -219,7 +219,7 @@ pytest
 | 対象 | 技術 | このライブラリとの接点 |
 |---|---|---|
 | **静的ビューア等** | HTML/JS（tools/examples/） | Pythonは実行時に呼ばない。`build_sqlite` で作った **aozora.db**（メタ＋doc/card JSON列）と、`python -m pybunko.fonts` の**外字フォント**を読むだけ |
-| **工作員ツール** | **Flet**（Python） | ライブラリを**直接 import**。変換確認・外字チェック・DB構築・ゴールデン検証。app/pykobo（AISeed工房）がその置き場 |
+| **工作員ツール** | **Flet**（Python） | ライブラリを**直接 import**。変換確認・外字チェック・DB構築・ゴールデン検証。pykobo（独立リポジトリ）（AISeed工房）がその置き場 |
 
 読者向けの成果物は「データ資産」:
 
@@ -232,7 +232,7 @@ python -c "from pybunko import Library; Library().build_sqlite('aozora.db')"
 python -m pybunko.fonts aozora-gaiji.woff2  # 真の外字4,330字（≈2.8MB）
 ```
 
-GUIでは工房（app/pykobo/aozora_kobo.py）の**資産タブ**から同じものを生成できる。
+GUIでは工房（pykobo（独立リポジトリ）/aozora_kobo.py）の**資産タブ**から同じものを生成できる。
 
 ### 朗読パック（音声読み上げを「先に作っておく」）
 
@@ -240,7 +240,7 @@ GUIでは工房（app/pykobo/aozora_kobo.py）の**資産タブ**から同じも
 合成テキストは `Paragraph.reading`（ルビ＝読み）なので誤読しない。
 
 ```bash
-pip install -e 'app/pykobo[audio]'          # edge-tts（要ffmpeg）
+pip install -e 'pykobo（独立リポジトリ）[audio]'          # edge-tts（要ffmpeg）
 python -m pybunko.audio 走れメロス.zip -o out/merosu
 # → out/merosu.opus（音声・モノラルOpus 32k）
 # → out/merosu.audiobook.json（段落タイミング manifest）
