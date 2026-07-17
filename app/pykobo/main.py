@@ -4,7 +4,7 @@
 Web/スマフォ:  KOBO_PORT=8790 python main.py
               → PC: http://localhost:8790 ／ 同一LANのスマフォからも開ける
 
-アプリ本体（6タブ: 執筆・入力・校正・検査・資産・検証）は aozora_kobo.py。
+アプリ本体（単一の執筆エディタ＋メニュー: ファイル・編集・挿入・ツール）は aozora_kobo.py。
 """
 import os
 import shutil

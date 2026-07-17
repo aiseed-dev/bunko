@@ -1,7 +1,10 @@
-"""Settings screen: Worker URL / PULL_TOKEN via QR scan or manual entry.
+"""Settings screen: Worker URL / PULL_TOKEN via manual entry (or optional QR scan).
 
-deploy.py encodes the QR payload as `{"url": "...", "token": "..."}` -- see
-README.md for the exact contract this screen expects.
+接続情報の実体は、受信箱を設置したときに deploy.py が書き出す
+`deploy-state.json`（PULL_TOKEN。0600）と、その実行時に表示される Worker URL。
+QRスキャン(モバイル)は、運用者がこの2つを `{"url": "...", "token": "..."}`
+のJSONにしたQRを用意した場合に読み取れる補助手段。deploy.py 自体はQRを
+出力しない(トークンを端末外に晒さないため)。
 """
 
 from __future__ import annotations
@@ -139,12 +142,13 @@ def SettingsView(
 
     if is_initial_setup:
         qr_note = (
-            "deploy.py が表示したQRコードを下のボタンから読み取ると、"
-            "二つとも自動で入力されます。"
+            "Worker URL と PULL_TOKEN を下の欄に入力します。接続情報のJSON "
+            '（{"url":…,"token":…}）のQRコードを用意していれば、下のボタン'
+            "から読み取って自動入力もできます。"
             if qr_scan_supported()
-            else "deploy.py の出力から Worker URL と PULL_TOKEN をコピーして、"
-            "下の欄に貼り付けてください。"
-            "(QRコードでの読み取りは Android/iOS 版で使えます)"
+            else "Worker URL と PULL_TOKEN を下の欄に貼り付けてください。"
+            "PULL_TOKEN は受信箱設置時の deploy-state.json（設置した人の手元）"
+            "にあります。"
         )
         header = ft.Column(
             [

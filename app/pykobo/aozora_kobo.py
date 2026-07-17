@@ -5,18 +5,16 @@ aozora_kobo.py — AISeed工房（工作員の作業台・Flet）
 工作員（入力・校正・保守）と書き手のための統合ツール ── 昔の日本語
 ワープロの現代版（テキストで書き、組版で確かめ、紙とデータに出す）。
 Pythonパイプライン（pybunko）を同一プロセスで直接呼ぶ ── これがFlet採用
-の理由（DESIGN.md ADR-4）。タブ:
+の理由（DESIGN.md ADR-4）。
 
-  執筆 …… 青空注記形式で書く。組版プレビュー（washi）・機械チェック・
-          印刷PDF・保存（UTF-8／提出用Shift_JIS CR+LF）
+単一の執筆エディタ（青空注記／AsciiDoc）にメニューを備える構成:
 
-  入力 …… 底本ページの写真（スマフォのカメラ可）→ VLMで注記テキストの下書き
-  検査 …… 作品の変換結果を点検（未対応注記・未解決外字〓・統計・プレビュー）
-          一括点検＝作品を横断して未対応注記の頻度統計（対応の優先順位を決める）
-          印刷＝washi組版で縦書きPDF/HTML（禁則・ルビ・縦中横は washi に委譲）
-  校正 …… 作業マニュアル準拠の機械チェック＋Claude校正＋作業履歴の生成
-  資産 …… 読者アプリ(bunko)に同梱するデータ資産を作る（書架DB・目次JSON・外字フォント）
-  検証 …… pybunko.official の公式XHTML再現を、ミラーの正解HTMLと突き合わせ（diff表示）
+  ファイル … 新規・開く・保存（UTF-8／提出用Shift_JIS CR+LF）・書誌情報・
+             記法切替・エクスポート（テキスト／JSON／EPUB／印刷用PDF）
+  編集 …… 元に戻す/やり直す・検索と置換・機械チェック
+  挿入 …… ルビ・傍点・見出し・字下げ・地付き・改ページ・挿絵、
+           組版プレビュー（washi）・印刷（Ctrl+P）
+  ツール … 変換点検（未対応注記・外字）・Claude校正・写真からの書き起こし（VLM）
 
 実行:  flet run aozora_kobo.py     （Web版: flet run --web aozora_kobo.py）
 """
@@ -31,13 +29,13 @@ from pathlib import Path
 
 import flet as ft
 
-from kobo_theme import (BODY, CAPTION, FONT_FAMILY, INK, INK_SOFT, MUTED, OK,
+from kobo_theme import (CAPTION, FONT_FAMILY, INK, INK_SOFT, MUTED, OK,
                         PAPER, PAPER_HI, RULE, SHU, SMALL, WARN, make_theme)
 from pybunko import Library, Work, parse
 from pybunko.ai import ClaudeClient, locate, proofread
 from pybunko.gaiji import resolve_note_body
-from pybunko.kosei import lint, work_history
-from pybunko.vision import ClaudeVisionEngine, OpenAiVisionEngine, transcribe_pages
+from pybunko.kosei import lint
+from pybunko.vision import OpenAiVisionEngine, transcribe_pages
 
 
 def finding_tile(line, rule, text, note, ai=False):
@@ -225,6 +223,10 @@ def main(page: ft.Page):
         page.update()
     ed_report = ft.ListView(height=150, spacing=4)
     ed_busy = ft.ProgressRing(width=18, height=18, color=SHU, visible=False)
+    # 重い処理（プレビュー/印刷/PDF/点検/校正/写真）の多重起動ガード。
+    # ed_busy は表示専用なので、連打で Chrome ヘッドレスが並走しないよう
+    # 実行中フラグで実際に弾く。
+    ed_running = {'on': False}
     ed_status = status_text('青空注記形式で書けます ── 語を選択してルビ/傍点、Ctrl+Sで保存')
 
     # 選択範囲の追跡（挿入・置換・囲みの基準。普通のエディタと同じ動き）
@@ -248,6 +250,10 @@ def main(page: ft.Page):
         if push_undo:
             _ed_push_undo()
         ed_text.value = new_text
+        # プログラムからの差し替えは打鍵の節目スナップショットも更新する。
+        # 更新しないと次の _on_change が差し替え前の全文を undo に積み、
+        # Ctrl+Z で意図しない旧テキストが復活する。
+        _ed_last_snapshot['v'] = new_text
         ed_text.selection = ft.TextSelection(base_offset=sel_start,
                                              extent_offset=sel_end)
         ed_sel['start'], ed_sel['end'] = sel_start, sel_end
@@ -315,10 +321,18 @@ def main(page: ft.Page):
         data = f.bytes if f.bytes is not None else Path(f.path).read_bytes()
         if not data:
             return
-        ed_state['fig_seq'] = ed_state.get('fig_seq', 0) + 1
-        filename = f'fig0_{ed_state["fig_seq"]:02d}.png'
         out = Path('images')
         out.mkdir(exist_ok=True)
+        # 連番はセッション毎に0リセットされ、別文書・再起動で fig0_01.png を
+        # 黙って上書きしていた。images/ の既存 fig0_NN.png を見て空き番号を
+        # 探し、上書きを避ける。
+        seq = ed_state.get('fig_seq', 0)
+        while True:
+            seq += 1
+            filename = f'fig0_{seq:02d}.png'
+            if not (out / filename).exists():
+                break
+        ed_state['fig_seq'] = seq
         (out / filename).write_bytes(data)
 
         v = _ed_text_get()
@@ -348,6 +362,7 @@ def main(page: ft.Page):
         ed_redo.append(_ed_text_get())
         v = ed_undo.pop()
         ed_text.value = v
+        _ed_last_snapshot['v'] = v
         _ed_update_status()
         page.update()
 
@@ -355,7 +370,9 @@ def main(page: ft.Page):
         if not ed_redo:
             return
         ed_undo.append(_ed_text_get())
-        ed_text.value = ed_redo.pop()
+        v = ed_redo.pop()
+        ed_text.value = v
+        _ed_last_snapshot['v'] = v
         _ed_update_status()
         page.update()
 
@@ -451,6 +468,7 @@ def main(page: ft.Page):
     def ed_new(e):
         _ed_push_undo()
         ed_text.value = ''
+        _ed_last_snapshot['v'] = ''  # 新規後の打鍵で旧文書がundoに積まれるのを防ぐ
         ed_state['filename'] = 'draft.pykobo'
         ed_state['mode'] = 'normal'
         ed_state['license'] = ''
@@ -706,6 +724,11 @@ def main(page: ft.Page):
             ed_status.value = '本文が空です'
             page.update()
             return
+        if ed_running['on']:
+            ed_status.value = '別の処理を実行中です。少し待ってから試してください'
+            page.update()
+            return
+        ed_running['on'] = True
         ed_busy.visible = True
         page.update()
 
@@ -721,6 +744,7 @@ def main(page: ft.Page):
                 ed_status.value = f'組版に失敗: {ex}'
             finally:
                 ed_busy.visible = False
+                ed_running['on'] = False
                 page.update()
         page.run_thread(work)
 
@@ -745,6 +769,11 @@ def main(page: ft.Page):
             ed_status.value = '本文が空です'
             page.update()
             return
+        if ed_running['on']:
+            ed_status.value = '別の処理を実行中です。少し待ってから試してください'
+            page.update()
+            return
+        ed_running['on'] = True
         ed_busy.visible = True
         page.update()
 
@@ -786,6 +815,7 @@ def main(page: ft.Page):
                 ed_status.value = f'印刷に失敗: {ex}'
             finally:
                 ed_busy.visible = False
+                ed_running['on'] = False
                 page.update()
         page.run_thread(work)
 
@@ -793,6 +823,11 @@ def main(page: ft.Page):
         text = ed_text.value or ''
         if not text.strip():
             return
+        if ed_running['on']:
+            ed_status.value = '別の処理を実行中です。少し待ってから試してください'
+            page.update()
+            return
+        ed_running['on'] = True
         ed_busy.visible = True
         page.update()
 
@@ -828,6 +863,7 @@ def main(page: ft.Page):
                 ed_status.value = f'PDF化に失敗: {ex}'
             finally:
                 ed_busy.visible = False
+                ed_running['on'] = False
                 page.update()
         page.run_thread(work)
 
@@ -875,13 +911,17 @@ def main(page: ft.Page):
         text = ed_text.value or ''
         if not text.strip():
             return
+        if ed_running['on']:
+            ed_status.value = '別の処理を実行中です。少し待ってから試してください'
+            page.update()
+            return
+        ed_running['on'] = True
         ed_busy.visible = True
         ed_report.controls = []
         page.update()
 
         def work():
             try:
-                from pybunko.ai import locate, proofread
                 fs = locate(proofread(text, _claude), text)
                 ed_report.controls = [
                     finding_tile(f.get('line', 0), '校正の疑い',
@@ -895,6 +935,7 @@ def main(page: ft.Page):
                 ed_status.value = f'Claude校正に失敗: {ex}'
             finally:
                 ed_busy.visible = False
+                ed_running['on'] = False
                 page.update()
         page.run_thread(work)
 
@@ -921,6 +962,11 @@ def main(page: ft.Page):
                 images.append((f.name, data))
         if not images:
             return
+        if ed_running['on']:
+            ed_status.value = '別の処理を実行中です。少し待ってから試してください'
+            page.update()
+            return
+        ed_running['on'] = True
         ed_busy.visible = True
         ed_status.value = f'{len(images)}枚を書き起こし中（ローカルVLM）…'
         page.update()
@@ -942,6 +988,7 @@ def main(page: ft.Page):
                                    'ノード（AOZORA_VISION_BASE_URL）を確認')
             finally:
                 ed_busy.visible = False
+                ed_running['on'] = False
                 page.update()
         page.run_thread(work)
 
@@ -987,6 +1034,11 @@ def main(page: ft.Page):
                                '（Documentモデルが青空注記の構造前提のため）')
             page.update()
             return
+        if ed_running['on']:
+            ed_status.value = '別の処理を実行中です。少し待ってから試してください'
+            page.update()
+            return
+        ed_running['on'] = True
         ed_busy.visible = True
         page.update()
 
@@ -1003,6 +1055,7 @@ def main(page: ft.Page):
                 ed_status.value = f'EPUB化に失敗: {ex}'
             finally:
                 ed_busy.visible = False
+                ed_running['on'] = False
                 page.update()
         page.run_thread(work)
 
