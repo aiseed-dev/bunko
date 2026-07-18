@@ -3,3 +3,4 @@ app/pykobo/assets/
 .venv/
 export_out/
 __pycache__/
+_ref/
